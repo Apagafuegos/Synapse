@@ -706,7 +706,7 @@ pub struct TokenUsage {
 }
 
 /// Analysis status
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum AnalysisStatus {
     Healthy,
     Warning,
