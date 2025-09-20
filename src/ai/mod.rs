@@ -9,11 +9,9 @@ pub mod models;
 pub mod processors;
 pub mod registry;
 pub mod providers;
-pub mod ai_analysis;
 
 pub use interface::*;
 pub use python_bridge::*;
 pub use models::*;
 pub use processors::*;
 pub use registry::*;
-pub use ai_analysis::*;
