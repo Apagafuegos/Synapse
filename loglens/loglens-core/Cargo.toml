@@ -1,0 +1,34 @@
+[package]
+name = "loglens-core"
+version = "0.1.0"
+edition = "2021"
+description = "Core log analysis library for LogLens"
+
+[features]
+default = ["full"]
+full = ["ai-providers", "mcp-server", "templating"]
+ai-providers = ["reqwest", "tokio", "async-trait"]
+mcp-server = ["rmcp", "schemars"]
+templating = ["askama"]
+parsing = []
+
+[dependencies]
+# Use workspace dependencies
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+dirs.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+encoding_rs.workspace = true
+
+# Optional dependencies based on features
+tokio = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+async-trait = { workspace = true, optional = true }
+askama = { workspace = true, optional = true }
+rmcp = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }

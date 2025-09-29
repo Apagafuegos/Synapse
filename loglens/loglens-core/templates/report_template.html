@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LogLens Analysis Report</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f7fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .metadata {
+            background: #f8f9fa;
+            padding: 20px 30px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .metadata-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .metadata-label {
+            font-weight: 600;
+            color: #6c757d;
+            margin-right: 10px;
+            min-width: 80px;
+        }
+
+        .metadata-value {
+            color: #495057;
+            font-family: 'Monaco', 'Consolas', monospace;
+            background: #e9ecef;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .analysis-section {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #3498db;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-icon {
+            margin-right: 12px;
+            font-size: 1.2em;
+        }
+
+        .analysis-content {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+            white-space: pre-wrap;
+            font-family: 'Georgia', serif;
+            line-height: 1.7;
+            font-size: 1.05em;
+        }
+
+        .log-entries {
+            margin-top: 30px;
+        }
+
+        .log-entry {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.9em;
+            border-left: 4px solid #e74c3c;
+            overflow-x: auto;
+        }
+
+        .log-timestamp {
+            color: #3498db;
+            font-weight: 600;
+        }
+
+        .log-level {
+            color: #e74c3c;
+            font-weight: 700;
+            padding: 2px 6px;
+            background: rgba(231, 76, 60, 0.2);
+            border-radius: 3px;
+            margin: 0 8px;
+        }
+
+        .log-message {
+            color: #ecf0f1;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(45deg, #f39c12, #e67e22);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: 700;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+
+        .footer {
+            background: #34495e;
+            color: #bdc3c7;
+            padding: 20px 30px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+
+        .footer a {
+            color: #3498db;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .error-highlight {
+            background: rgba(231, 76, 60, 0.1);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .metadata-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 LogLens Analysis Report</h1>
+            <div class="subtitle">AI-Powered Log Analysis Results</div>
+        </div>
+
+        <div class="metadata">
+            <div class="metadata-grid">
+                <div class="metadata-item">
+                    <span class="metadata-label">Source:</span>
+                    <span class="metadata-value">{{ input_source }}</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">Provider:</span>
+                    <span class="metadata-value">{{ provider }}</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">Level:</span>
+                    <span class="metadata-value">{{ level }}</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">Generated:</span>
+                    <span class="metadata-value">{{ timestamp }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-number">{{ log_count }}</span>
+                    <div class="stat-label">Log Entries Analyzed</div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">{{ provider }}</span>
+                    <div class="stat-label">AI Provider</div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">{{ level }}</span>
+                    <div class="stat-label">Filter Level</div>
+                </div>
+            </div>
+
+            <div class="analysis-section">
+                <h2 class="section-title">
+                    <span class="section-icon">📋</span>
+                    Sequence of Events
+                </h2>
+                <div class="analysis-content">{{ analysis.sequence_of_events }}</div>
+            </div>
+
+            <div class="analysis-section">
+                <h2 class="section-title">
+                    <span class="section-icon">🚨</span>
+                    Error Details
+                </h2>
+                <div class="analysis-content error-highlight">{{ analysis.root_cause.description }}</div>
+            </div>
+
+            <div class="analysis-section">
+                <h2 class="section-title">
+                    <span class="section-icon">🔧</span>
+                    Failed Component
+                </h2>
+                <div class="analysis-content">{{ analysis.root_cause.file_location.as_deref().unwrap_or("Unknown") }}</div>
+            </div>
+
+            {% if !log_entries.is_empty() %}
+            <div class="analysis-section">
+                <h2 class="section-title">
+                    <span class="section-icon">📝</span>
+                    Analyzed Log Entries ({{ log_entries.len() }})
+                </h2>
+                <div class="log-entries">
+                    {% for entry in log_entries %}
+                    <div class="log-entry">
+                        <span class="log-timestamp">{{ entry.timestamp }}</span>
+                        <span class="log-level">{{ entry.level }}</span>
+                        <span class="log-message">{{ entry.message }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="footer">
+            <p>Generated by <a href="https://github.com/your-repo/loglens" target="_blank">LogLens</a> - AI-Powered Log Analysis Tool</p>
+            <p>Report created on {{ timestamp }}</p>
+        </div>
+    </div>
+</body>
+</html>

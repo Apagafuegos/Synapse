@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LogLens - AI-Powered Log Analysis</title>
+    <link rel="stylesheet" href="https://unpkg.com/tailwindcss@^3.0/dist/tailwind.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/heroicons@2.0.16/24/outline/index.css">
+    <link rel="stylesheet" href="/styles-629f89d6b2842efc.css" integrity="sha384-zSqzkl9KXY+RoP6mEUYoxVuz7NNl/xtzhyVJLr5KwRcdlkF3Zfmt9cPMRUA3M/Rv"/>
+    <!-- <link data-trunk rel="inline" href="static/favicon.ico"> -->
+<link rel="modulepreload" href="/loglens-frontend-1bf5d963f9d04841.js" crossorigin="anonymous" integrity="sha384-9rUhy+XAQUmcI9dST3Dl1OXqefSs+N8utXiWEtqqqkMtVtFVOMXRBj2R9moO3TzD"><link rel="preload" href="/loglens-frontend-1bf5d963f9d04841_bg.wasm" crossorigin="anonymous" integrity="sha384-YzAizBXFxDdWr+7AXE4oSTsXL/8O0CerET9A44IsWoKi59ATABZwcCgYoLZSazLe" as="fetch" type="application/wasm"></head>
+<body class="bg-gray-50 font-sans">
+    <div id="app" class="min-h-screen">
+        <!-- App will be mounted here by Yew -->
+        <div class="flex items-center justify-center min-h-screen">
+            <div class="text-center">
+                <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+                <p class="mt-4 text-gray-600">Loading LogLens...</p>
+            </div>
+        </div>
+    </div>
+    
+<script type="module">
+import init, * as bindings from '/loglens-frontend-1bf5d963f9d04841.js';
+const wasm = await init({ module_or_path: '/loglens-frontend-1bf5d963f9d04841_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script>
+</body>
+</html>

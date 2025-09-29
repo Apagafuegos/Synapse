@@ -1,0 +1,20 @@
+{
+  "name": "loglens-wasm",
+  "version": "0.1.0",
+  "description": "WASM module for LogLens log parsing",
+  "main": "pkg/loglens_wasm.js",
+  "types": "pkg/loglens_wasm.d.ts",
+  "files": ["pkg"],
+  "scripts": {
+    "build": "wasm-pack build --target web --out-dir pkg --dev",
+    "build:release": "wasm-pack build --target web --out-dir pkg",
+    "clean": "rm -rf pkg",
+    "test": "wasm-pack test --node"
+  },
+  "keywords": ["wasm", "logs", "parsing"],
+  "author": "LogLens Team",
+  "license": "MIT",
+  "devDependencies": {
+    "wasm-pack": "^0.12.1"
+  }
+}

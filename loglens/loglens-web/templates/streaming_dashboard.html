@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LogLens - Real-time Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="module">
+        import init, { StreamingClient, LiveSearch, ChartDataGenerator } from '/pkg/loglens_wasm.js';
+        
+        let streamingClient;
+        let liveSearch;
+        let charts = {};
+        
+        async function initializeWasm() {
+            await init();
+            console.log('LogLens WASM initialized');
+        }
+        
+        // Initialize the dashboard when page loads
+        window.addEventListener('load', async () => {
+            await initializeWasm();
+            initializeDashboard();
+        });
+        
+        function initializeDashboard() {
+            const projectId = getProjectId();
+            const baseUrl = getBaseUrl();
+            
+            // Initialize streaming client
+            streamingClient = new StreamingClient(projectId, baseUrl);
+            liveSearch = new LiveSearch();
+            
+            // Set up callbacks
+            streamingClient.set_on_analytics_update((analytics) => {
+                updateDashboard(analytics);
+            });
+            
+            streamingClient.set_on_message((message) => {
+                console.log('Raw WebSocket message:', message);
+            });
+            
+            // Initialize charts
+            initializeCharts();
+            
+            // Connect to streaming
+            connect();
+        }
+        
+        function connect() {
+            streamingClient.connect().then(() => {
+                updateConnectionStatus('Connected');
+                document.getElementById('connectBtn').textContent = 'Disconnect';
+                document.getElementById('connectBtn').onclick = disconnect;
+            }).catch(err => {
+                console.error('Connection failed:', err);
+                updateConnectionStatus('Connection Failed');
+            });
+        }
+        
+        function disconnect() {
+            streamingClient.disconnect();
+            updateConnectionStatus('Disconnected');
+            document.getElementById('connectBtn').textContent = 'Connect';
+            document.getElementById('connectBtn').onclick = connect;
+        }
+        
+        function updateDashboard(analytics) {
+            updateStatistics(analytics);
+            updateCharts(analytics);
+            updateRecentLogs(analytics);
+        }
+        
+        function updateStatistics(analytics) {
+            document.getElementById('totalEntries').textContent = analytics.total_entries.toLocaleString();
+            document.getElementById('errorCount').textContent = analytics.entries_by_level.ERROR || 0;
+            document.getElementById('warningCount').textContent = analytics.entries_by_level.WARN || analytics.entries_by_level.WARNING || 0;
+            document.getElementById('infoCount').textContent = analytics.entries_by_level.INFO || 0;
+            
+            // Update last update time
+            const lastUpdate = new Date(analytics.last_update);
+            document.getElementById('lastUpdate').textContent = lastUpdate.toLocaleTimeString();
+        }
+        
+        function updateCharts(analytics) {
+            // Update level distribution pie chart
+            const levelData = ChartDataGenerator.generate_level_pie_data(analytics);
+            updatePieChart(charts.levelPie, levelData);
+            
+            // Update time series chart
+            const timeSeriesData = ChartDataGenerator.generate_level_timeseries(analytics);
+            updateTimeSeriesChart(charts.timeSeries, timeSeriesData);
+            
+            // Update source distribution
+            const sourceData = ChartDataGenerator.generate_source_distribution(analytics);
+            updateSourceChart(charts.sourceBar, sourceData);
+        }
+        
+        function updateRecentLogs(analytics) {
+            const recentEntries = streamingClient.get_recent_entries(50);
+            const filteredEntries = liveSearch.filter_entries(recentEntries);
+            
+            const container = document.getElementById('recentLogs');
+            container.innerHTML = '';
+            
+            filteredEntries.forEach(entry => {
+                const logElement = createLogElement(entry);
+                container.appendChild(logElement);
+            });
+        }
+        
+        function createLogElement(entry) {
+            const div = document.createElement('div');
+            div.className = `log-entry log-${entry.level.toLowerCase()}`;
+            
+            const timestamp = new Date(entry.timestamp).toLocaleTimeString();
+            
+            div.innerHTML = `
+                <div class="log-header">
+                    <span class="timestamp">${timestamp}</span>
+                    <span class="level level-${entry.level.toLowerCase()}">${entry.level}</span>
+                    <span class="source">${entry.source}</span>
+                </div>
+                <div class="log-message">${escapeHtml(entry.message)}</div>
+            `;
+            
+            return div;
+        }
+        
+        function initializeCharts() {
+            // Level distribution pie chart
+            const levelPieCtx = document.getElementById('levelPieChart').getContext('2d');
+            charts.levelPie = new Chart(levelPieCtx, {
+                type: 'pie',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Log Levels Distribution'
+                        }
+                    }
+                }
+            });
+            
+            // Time series chart
+            const timeSeriesCtx = document.getElementById('timeSeriesChart').getContext('2d');
+            charts.timeSeries = new Chart(timeSeriesCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Log Activity Over Time'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time (minutes ago)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Log Count'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Source distribution bar chart
+            const sourceBarCtx = document.getElementById('sourceBarChart').getContext('2d');
+            charts.sourceBar = new Chart(sourceBarCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Log Count',
+                        data: [],
+                        backgroundColor: '#3b82f6'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Logs by Source'
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updatePieChart(chart, data) {
+            chart.data.labels = data.map(d => d.label);
+            chart.data.datasets[0].data = data.map(d => d.value);
+            chart.update();
+        }
+        
+        function updateTimeSeriesChart(chart, data) {
+            // Convert time bucket data to chart format
+            const labels = [];
+            const errorData = [];
+            const warningData = [];
+            const infoData = [];
+            
+            for (let i = 59; i >= 0; i--) {
+                labels.push(`${i}m ago`);
+                const bucket = data[i] || {};
+                errorData.push(bucket.ERROR || 0);
+                warningData.push(bucket.WARN || bucket.WARNING || 0);
+                infoData.push(bucket.INFO || 0);
+            }
+            
+            chart.data.labels = labels;
+            chart.data.datasets = [
+                {
+                    label: 'Errors',
+                    data: errorData,
+                    borderColor: '#ef4444',
+                    backgroundColor: '#ef444420'
+                },
+                {
+                    label: 'Warnings',
+                    data: warningData,
+                    borderColor: '#f97316',
+                    backgroundColor: '#f9731620'
+                },
+                {
+                    label: 'Info',
+                    data: infoData,
+                    borderColor: '#22c55e',
+                    backgroundColor: '#22c55e20'
+                }
+            ];
+            chart.update();
+        }
+        
+        function updateSourceChart(chart, data) {
+            chart.data.labels = data.map(d => d.source);
+            chart.data.datasets[0].data = data.map(d => d.count);
+            chart.update();
+        }
+        
+        function updateConnectionStatus(status) {
+            const statusElement = document.getElementById('connectionStatus');
+            statusElement.textContent = status;
+            statusElement.className = `status ${status.toLowerCase().replace(' ', '-')}`;
+        }
+        
+        // Filter functions
+        function applyFilters() {
+            const levels = Array.from(document.querySelectorAll('#levelFilter input:checked'))
+                .map(input => input.value);
+            const keywords = document.getElementById('keywordFilter').value.split(',')
+                .map(k => k.trim()).filter(k => k);
+            
+            liveSearch.set_level_filter(levels);
+            liveSearch.set_keyword_filter(keywords);
+            
+            // Refresh recent logs with new filters
+            const analytics = streamingClient.get_analytics();
+            updateRecentLogs(analytics);
+        }
+        
+        function clearFilters() {
+            document.querySelectorAll('#levelFilter input').forEach(input => input.checked = true);
+            document.getElementById('keywordFilter').value = '';
+            
+            liveSearch = new LiveSearch(); // Reset filters
+            
+            const analytics = streamingClient.get_analytics();
+            updateRecentLogs(analytics);
+        }
+        
+        function clearAnalytics() {
+            streamingClient.clear_analytics();
+            
+            // Clear charts
+            Object.values(charts).forEach(chart => {
+                chart.data.labels = [];
+                chart.data.datasets.forEach(dataset => dataset.data = []);
+                chart.update();
+            });
+            
+            // Clear recent logs
+            document.getElementById('recentLogs').innerHTML = '';
+            
+            // Reset statistics
+            document.getElementById('totalEntries').textContent = '0';
+            document.getElementById('errorCount').textContent = '0';
+            document.getElementById('warningCount').textContent = '0';
+            document.getElementById('infoCount').textContent = '0';
+        }
+        
+        // Utility functions
+        function getProjectId() {
+            return new URLSearchParams(window.location.search).get('project') || 'default-project';
+        }
+        
+        function getBaseUrl() {
+            return `${window.location.protocol}//${window.location.host}`;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Export functions for global access
+        window.LogLensDashboard = {
+            connect,
+            disconnect,
+            applyFilters,
+            clearFilters,
+            clearAnalytics
+        };
+    </script>
+    
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f8fafc;
+            color: #1e293b;
+        }
+        
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .connection-panel {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .status.connected { background: #dcfce7; color: #166534; }
+        .status.disconnected { background: #fee2e2; color: #991b1b; }
+        .status.connection-failed { background: #fef3c7; color: #92400e; }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        
+        .stat-label {
+            color: #64748b;
+            font-size: 14px;
+        }
+        
+        .stat-error .stat-value { color: #ef4444; }
+        .stat-warning .stat-value { color: #f97316; }
+        .stat-info .stat-value { color: #22c55e; }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .chart-card canvas {
+            max-height: 300px;
+        }
+        
+        .logs-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .logs-header {
+            padding: 20px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .filters {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .filter-group label {
+            font-size: 14px;
+            color: #64748b;
+        }
+        
+        .level-filters {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .level-filters input[type="checkbox"] {
+            margin-right: 5px;
+        }
+        
+        .recent-logs {
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .log-entry {
+            border-left: 4px solid #e2e8f0;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 0 4px 4px 0;
+            background: #f8fafc;
+        }
+        
+        .log-entry.log-error { border-left-color: #ef4444; }
+        .log-entry.log-warning, .log-entry.log-warn { border-left-color: #f97316; }
+        .log-entry.log-info { border-left-color: #22c55e; }
+        .log-entry.log-debug { border-left-color: #3b82f6; }
+        
+        .log-header {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .timestamp {
+            color: #64748b;
+            font-family: monospace;
+        }
+        
+        .level {
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .level-error { background: #fee2e2; color: #991b1b; }
+        .level-warning, .level-warn { background: #fef3c7; color: #92400e; }
+        .level-info { background: #dcfce7; color: #166534; }
+        .level-debug { background: #dbeafe; color: #1d4ed8; }
+        
+        .source {
+            color: #64748b;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .log-message {
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #2563eb;
+        }
+        
+        button.secondary {
+            background: #6b7280;
+        }
+        
+        button.secondary:hover {
+            background: #4b5563;
+        }
+        
+        input[type="text"] {
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>LogLens - Real-time Analytics Dashboard</h1>
+            <div class="connection-panel">
+                <span id="connectionStatus" class="status disconnected">Disconnected</span>
+                <button id="connectBtn" onclick="LogLensDashboard.connect()">Connect</button>
+                <span style="color: #64748b; font-size: 14px;">
+                    Last update: <span id="lastUpdate">Never</span>
+                </span>
+            </div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalEntries">0</div>
+                <div class="stat-label">Total Log Entries</div>
+            </div>
+            <div class="stat-card stat-error">
+                <div class="stat-value" id="errorCount">0</div>
+                <div class="stat-label">Errors</div>
+            </div>
+            <div class="stat-card stat-warning">
+                <div class="stat-value" id="warningCount">0</div>
+                <div class="stat-label">Warnings</div>
+            </div>
+            <div class="stat-card stat-info">
+                <div class="stat-value" id="infoCount">0</div>
+                <div class="stat-label">Info Messages</div>
+            </div>
+        </div>
+        
+        <div class="charts-grid">
+            <div class="chart-card">
+                <canvas id="levelPieChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <canvas id="timeSeriesChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="chart-card" style="margin-bottom: 30px;">
+            <canvas id="sourceBarChart"></canvas>
+        </div>
+        
+        <div class="logs-section">
+            <div class="logs-header">
+                <h3>Real-time Log Stream</h3>
+                <div class="filters">
+                    <div class="filter-group">
+                        <label>Levels:</label>
+                        <div class="level-filters" id="levelFilter">
+                            <label><input type="checkbox" value="ERROR" checked> ERROR</label>
+                            <label><input type="checkbox" value="WARN" checked> WARN</label>
+                            <label><input type="checkbox" value="INFO" checked> INFO</label>
+                            <label><input type="checkbox" value="DEBUG" checked> DEBUG</label>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>Keywords:</label>
+                        <input type="text" id="keywordFilter" placeholder="search terms separated by commas">
+                    </div>
+                    <button onclick="LogLensDashboard.applyFilters()">Apply Filters</button>
+                    <button onclick="LogLensDashboard.clearFilters()" class="secondary">Clear</button>
+                    <button onclick="LogLensDashboard.clearAnalytics()" class="secondary">Clear All Data</button>
+                </div>
+            </div>
+            <div class="recent-logs" id="recentLogs">
+                <div style="text-align: center; color: #64748b; padding: 40px;">
+                    Connect to start streaming real-time logs...
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

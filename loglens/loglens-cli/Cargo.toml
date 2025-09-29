@@ -1,0 +1,19 @@
+[package]
+name = "loglens-cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "loglens"
+path = "src/main.rs"
+
+[[bin]]
+name = "debug_encoding"
+path = "src/debug_encoding.rs"
+
+[dependencies]
+loglens-core = { path = "../loglens-core" }
+clap = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+serde_json = { workspace = true }

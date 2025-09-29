@@ -1,0 +1,28 @@
+[package]
+name = "loglens-frontend"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "loglens-frontend"
+path = "src/main.rs"
+
+[dependencies]
+# loglens-core = { path = "../../loglens-core" }
+# loglens-wasm = { path = "../../loglens-wasm" }
+yew = { version = "0.21", features = ["csr"] }
+yew-router = "0.18"
+web-sys = { workspace = true }
+js-sys = { workspace = true }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = "0.4"
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { version = "0.11", features = ["json"] }
+gloo = "0.10"
+gloo-net = "0.5"
+gloo-storage = "0.3"
+chrono = { workspace = true }
+uuid = { version = "1.0", features = ["v4", "js"] }
+wasm-logger = "0.2"
+regex = { workspace = true }

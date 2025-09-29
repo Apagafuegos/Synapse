@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LogLens - AI-Powered Log Analysis</title>
+    <link rel="stylesheet" href="https://unpkg.com/tailwindcss@^3.0/dist/tailwind.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/heroicons@2.0.16/24/outline/index.css">
+    <link data-trunk rel="css" href="static/styles.css">
+    <!-- <link data-trunk rel="inline" href="static/favicon.ico"> -->
+</head>
+<body class="bg-gray-50 font-sans">
+    <div id="app" class="min-h-screen">
+        <!-- App will be mounted here by Yew -->
+        <div class="flex items-center justify-center min-h-screen">
+            <div class="text-center">
+                <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+                <p class="mt-4 text-gray-600">Loading LogLens...</p>
+            </div>
+        </div>
+    </div>
+    <link data-trunk rel="rust" data-wasm-opt="z" data-bin="loglens-frontend" />
+</body>
+</html>
