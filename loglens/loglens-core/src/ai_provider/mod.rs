@@ -1,6 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use std::collections::HashMap;
 use crate::context_manager::AIAnalysisPayload;
 use crate::classification::ErrorCategory;
 
@@ -52,6 +53,52 @@ pub struct AnalysisResponse {
     pub confidence: f32,
     pub related_errors: Vec<String>,
     pub unrelated_errors: Vec<String>,
+    // Advanced analytics for frontend
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub errors_found: Option<Vec<ErrorAnalysis>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub patterns: Option<Vec<PatternAnalysisSimple>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub performance: Option<PerformanceAnalysisSimple>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anomalies: Option<Vec<AnomalyAnalysisSimple>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErrorAnalysis {
+    pub category: ErrorCategory,
+    pub description: String,
+    pub file_location: Option<String>,
+    pub line_numbers: Vec<usize>,
+    pub frequency: usize,
+    pub severity: String,
+    pub context: Vec<String>,
+    pub recommendations: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PatternAnalysisSimple {
+    pub pattern: String,
+    pub frequency: usize,
+    pub first_occurrence: usize,
+    pub last_occurrence: usize,
+    pub trend: String, // "increasing", "decreasing", "stable"
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceAnalysisSimple {
+    pub total_processing_time: f64,
+    pub bottlenecks: Vec<String>,
+    pub recommendations: Vec<String>,
+    pub metrics: HashMap<String, f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnomalyAnalysisSimple {
+    pub description: String,
+    pub confidence: f32,
+    pub line_numbers: Vec<usize>,
+    pub anomaly_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

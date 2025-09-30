@@ -3,12 +3,16 @@ mod performance;
 mod anomaly;
 mod correlation;
 
-use crate::ai_provider::{AIProvider, AnalysisRequest, AnalysisResponse, AnalysisFocus, RootCauseAnalysis};
+use crate::ai_provider::{
+    AIProvider, AnalysisRequest, AnalysisResponse, AnalysisFocus, RootCauseAnalysis,
+    ErrorAnalysis, PatternAnalysisSimple, PerformanceAnalysisSimple, AnomalyAnalysisSimple
+};
 use crate::context_manager::ContextManager;
 use crate::classification::ErrorCategory;
 use crate::input::LogEntry;
 use crate::slimmer::{slim_logs_with_mode, SlimmingMode};
 use anyhow::Result;
+use std::collections::HashMap;
 use patterns::PatternAnalyzer;
 use performance::PerformanceAnalyzer;
 use anomaly::AnomalyDetector;
@@ -248,6 +252,9 @@ impl Analyzer {
 
         let response = self.provider.analyze(analysis_request).await?;
 
+        // Enhance with analytics
+        let enhanced_response = self.enhance_with_analytics(response, &entries);
+
         if self.config.progress_feedback {
             if let Some(ref callback) = progress_callback {
                 callback(AnalysisProgress {
@@ -260,7 +267,7 @@ impl Analyzer {
             }
         }
 
-        Ok(response)
+        Ok(enhanced_response)
     }
 
     /// Analyze logs with aggressive slimming
@@ -303,6 +310,9 @@ impl Analyzer {
             response.sequence_of_events
         );
 
+        // Enhance with analytics using original entries
+        let enhanced_response = self.enhance_with_analytics(response, &entries);
+
         if self.config.progress_feedback {
             if let Some(ref callback) = progress_callback {
                 callback(AnalysisProgress {
@@ -315,7 +325,7 @@ impl Analyzer {
             }
         }
 
-        Ok(response)
+        Ok(enhanced_response)
     }
 
     /// Analyze logs using chunking strategy for very large logs
@@ -372,19 +382,22 @@ impl Analyzer {
 
         let synthesized_response = self.synthesize_chunk_results(chunk_results, entries.len())?;
 
+        // Enhance with analytics using all original entries
+        let enhanced_response = self.enhance_with_analytics(synthesized_response, &entries);
+
         if self.config.progress_feedback {
             if let Some(ref callback) = progress_callback {
                 callback(AnalysisProgress {
-                    current_chunk: synthesized_response.related_errors.len(),
-                    total_chunks: synthesized_response.related_errors.len(),
-                    chunks_completed: synthesized_response.related_errors.len(),
+                    current_chunk: enhanced_response.related_errors.len(),
+                    total_chunks: enhanced_response.related_errors.len(),
+                    chunks_completed: enhanced_response.related_errors.len(),
                     estimated_tokens_processed: self.estimate_tokens(&entries),
                     phase: "Chunked analysis complete".to_string(),
                 });
             }
         }
 
-        Ok(synthesized_response)
+        Ok(enhanced_response)
     }
 
     /// Process multiple chunks in parallel
@@ -519,7 +532,152 @@ impl Analyzer {
             confidence: avg_confidence,
             related_errors: all_related_errors,
             unrelated_errors: all_unrelated_errors,
+            errors_found: None,
+            patterns: None,
+            performance: None,
+            anomalies: None,
         })
+    }
+
+    /// Enhance analysis response with advanced analytics
+    fn enhance_with_analytics(&self, mut response: AnalysisResponse, entries: &[LogEntry]) -> AnalysisResponse {
+        // Generate error analytics
+        let errors_found = self.generate_error_analytics(entries, &response);
+
+        // Generate pattern analytics
+        let patterns = self.generate_pattern_analytics(entries);
+
+        // Generate performance analytics
+        let performance = self.generate_performance_analytics(entries);
+
+        // Generate anomaly analytics
+        let anomalies = self.generate_anomaly_analytics(entries);
+
+        response.errors_found = Some(errors_found);
+        response.patterns = Some(patterns);
+        response.performance = Some(performance);
+        response.anomalies = Some(anomalies);
+
+        response
+    }
+
+    fn generate_error_analytics(&self, entries: &[LogEntry], response: &AnalysisResponse) -> Vec<ErrorAnalysis> {
+
+        let mut error_map: HashMap<String, (Vec<usize>, Vec<String>)> = HashMap::new();
+
+        for (idx, entry) in entries.iter().enumerate() {
+            if entry.level.as_ref().map_or(false, |l| l == "ERROR") {
+                let key = entry.message.chars().take(100).collect::<String>();
+                error_map.entry(key.clone())
+                    .or_insert_with(|| (Vec::new(), Vec::new()))
+                    .0.push(idx);
+                error_map.get_mut(&key).unwrap().1.push(entry.message.clone());
+            }
+        }
+
+        let mut errors: Vec<ErrorAnalysis> = error_map.into_iter()
+            .map(|(desc, (lines, contexts))| {
+                let frequency = lines.len();
+                let severity = if frequency > 10 { "critical" } else if frequency > 5 { "high" } else if frequency > 2 { "medium" } else { "low" };
+
+                ErrorAnalysis {
+                    category: response.root_cause.category.clone(),
+                    description: desc,
+                    file_location: response.root_cause.file_location.clone(),
+                    line_numbers: lines,
+                    frequency,
+                    severity: severity.to_string(),
+                    context: contexts.into_iter().take(3).collect(),
+                    recommendations: vec![],
+                }
+            })
+            .collect();
+
+        errors.sort_by(|a, b| b.frequency.cmp(&a.frequency));
+        errors.truncate(10);
+        errors
+    }
+
+    fn generate_pattern_analytics(&self, entries: &[LogEntry]) -> Vec<PatternAnalysisSimple> {
+
+        let mut pattern_map: HashMap<String, Vec<usize>> = HashMap::new();
+
+        for (idx, entry) in entries.iter().enumerate() {
+            let pattern = entry.message
+                .split_whitespace()
+                .take(5)
+                .collect::<Vec<&str>>()
+                .join(" ");
+            pattern_map.entry(pattern).or_insert_with(Vec::new).push(idx);
+        }
+
+        let mut patterns: Vec<PatternAnalysisSimple> = pattern_map.into_iter()
+            .filter(|(_, occurrences)| occurrences.len() > 1)
+            .map(|(pattern, occurrences)| {
+                let first = *occurrences.first().unwrap();
+                let last = *occurrences.last().unwrap();
+                let trend = if occurrences.len() > 5 { "increasing" }
+                           else if occurrences.len() > 2 { "stable" }
+                           else { "decreasing" };
+
+                PatternAnalysisSimple {
+                    pattern,
+                    frequency: occurrences.len(),
+                    first_occurrence: first,
+                    last_occurrence: last,
+                    trend: trend.to_string(),
+                }
+            })
+            .collect();
+
+        patterns.sort_by(|a, b| b.frequency.cmp(&a.frequency));
+        patterns.truncate(10);
+        patterns
+    }
+
+    fn generate_performance_analytics(&self, entries: &[LogEntry]) -> PerformanceAnalysisSimple {
+
+        let error_count = entries.iter().filter(|e| e.level.as_ref().map_or(false, |l| l == "ERROR")).count();
+        let warn_count = entries.iter().filter(|e| e.level.as_ref().map_or(false, |l| l == "WARN")).count();
+        let total_count = entries.len();
+
+        let mut metrics = HashMap::new();
+        metrics.insert("error_rate".to_string(), (error_count as f64 / total_count.max(1) as f64) * 100.0);
+        metrics.insert("warning_rate".to_string(), (warn_count as f64 / total_count.max(1) as f64) * 100.0);
+        metrics.insert("total_logs".to_string(), total_count as f64);
+
+        let bottlenecks = if error_count > total_count / 10 {
+            vec!["High error rate detected".to_string()]
+        } else {
+            vec![]
+        };
+
+        PerformanceAnalysisSimple {
+            total_processing_time: 0.0,
+            bottlenecks,
+            recommendations: vec!["Review error patterns for optimization opportunities".to_string()],
+            metrics,
+        }
+    }
+
+    fn generate_anomaly_analytics(&self, entries: &[LogEntry]) -> Vec<AnomalyAnalysisSimple> {
+
+        let mut anomalies = Vec::new();
+        let avg_length = entries.iter().map(|e| e.message.len()).sum::<usize>() / entries.len().max(1);
+
+        for (idx, entry) in entries.iter().enumerate() {
+            if entry.message.len() > avg_length * 3 {
+                anomalies.push(AnomalyAnalysisSimple {
+                    description: "Unusually long log message detected".to_string(),
+                    confidence: 0.7,
+                    line_numbers: vec![idx],
+                    anomaly_type: "length".to_string(),
+                });
+            }
+        }
+
+        anomalies.truncate(5);
+        anomalies
     }
 
     /// Create an empty response for edge cases
@@ -538,6 +696,10 @@ impl Analyzer {
             confidence: 0.0,
             related_errors: vec![],
             unrelated_errors: vec![],
+            errors_found: None,
+            patterns: None,
+            performance: None,
+            anomalies: None,
         }
     }
 

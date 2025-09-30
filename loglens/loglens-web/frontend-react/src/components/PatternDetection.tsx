@@ -1,6 +1,7 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ArrowsRightLeftIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon, MinusIcon } from '@heroicons/react/24/outline';
 import { PatternAnalysis } from '@/types';
+import { CustomTooltip, ChartContainer, chartColors, chartGridProps, chartAxisProps } from './ChartComponents';
 
 interface PatternDetectionProps {
   patterns: PatternAnalysis[];
@@ -14,9 +15,9 @@ const trendIcons = {
 };
 
 const trendColors = {
-  increasing: '#ef4444',
-  decreasing: '#10b981',
-  stable: '#6b7280'
+  increasing: chartColors.error.main,
+  decreasing: chartColors.success.main,
+  stable: chartColors.gray.main
 };
 
 export function PatternDetection({ patterns, loading }: PatternDetectionProps) {
@@ -74,26 +75,30 @@ export function PatternDetection({ patterns, loading }: PatternDetectionProps) {
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
             Pattern Frequency Overview
           </h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={timelineData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="pattern" />
-                <YAxis />
-                <Tooltip 
-                  formatter={(value) => [value, 'Frequency']}
-                  labelFormatter={(label) => `Pattern: ${label}`}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="frequency" 
-                  stroke="#3b82f6" 
-                  fill="#3b82f6" 
-                  fillOpacity={0.3}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          <ChartContainer>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={timelineData}>
+                  <CartesianGrid {...chartGridProps} />
+                  <XAxis dataKey="pattern" {...chartAxisProps} />
+                  <YAxis {...chartAxisProps} />
+                  <Tooltip
+                    content={<CustomTooltip />}
+                    formatter={(value) => [value, 'Frequency']}
+                    labelFormatter={(label) => `Pattern: ${label}`}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="frequency"
+                    stroke={chartColors.primary.main}
+                    fill={chartColors.primary.main}
+                    fillOpacity={0.3}
+                    name="Frequency"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartContainer>
         </div>
 
         <div>
@@ -104,11 +109,11 @@ export function PatternDetection({ patterns, loading }: PatternDetectionProps) {
             {patterns.slice(0, 5).map((pattern, index) => {
               const TrendIcon = trendIcons[pattern.trend];
               const trendColor = trendColors[pattern.trend];
-              
+
               return (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-colors">
                   <div className="flex items-center space-x-3">
-                    <TrendIcon className="h-5 w-5" style={{ color: trendColor }} />
+                    <TrendIcon className="h-5 w-5 flex-shrink-0" style={{ color: trendColor }} />
                     <div>
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                         {pattern.pattern.substring(0, 40)}{pattern.pattern.length > 40 ? '...' : ''}
@@ -118,11 +123,11 @@ export function PatternDetection({ patterns, loading }: PatternDetectionProps) {
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0">
                     <p className="text-sm font-bold text-gray-900 dark:text-gray-100">
                       {pattern.frequency}
                     </p>
-                    <p className="text-xs" style={{ color: trendColor }}>
+                    <p className="text-xs capitalize" style={{ color: trendColor }}>
                       {pattern.trend}
                     </p>
                   </div>

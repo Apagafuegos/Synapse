@@ -169,6 +169,10 @@ impl OpenRouterProvider {
             confidence: 0.5,
             related_errors: Vec::new(),
             unrelated_errors: Vec::new(),
+            errors_found: None,
+            patterns: None,
+            performance: None,
+            anomalies: None,
         }
     }
 }

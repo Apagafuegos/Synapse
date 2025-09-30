@@ -181,24 +181,24 @@ function AnalysisDetailContent() {
         loading={isLoading} 
       />
       
-      <ErrorAnalysisDashboard 
-        errors={[...(analysisResult?.related_errors || []), ...(analysisResult?.unrelated_errors || [])]} 
-        loading={isLoading} 
+      <ErrorAnalysisDashboard
+        errors={analysisResult?.errors_found || []}
+        loading={isLoading}
       />
-      
-      <PatternDetection 
-        patterns={[]} 
-        loading={isLoading} 
+
+      <PatternDetection
+        patterns={analysisResult?.patterns || []}
+        loading={isLoading}
       />
-      
-      <PerformanceMetrics 
-        performance={null} 
-        loading={isLoading} 
+
+      <PerformanceMetrics
+        performance={analysisResult?.performance || null}
+        loading={isLoading}
       />
-      
-      <AnomalyDetection 
-        anomalies={[]} 
-        loading={isLoading} 
+
+      <AnomalyDetection
+        anomalies={analysisResult?.anomalies || []}
+        loading={isLoading}
       />
       
       <Recommendations 

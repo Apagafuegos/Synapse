@@ -170,6 +170,10 @@ impl LogLens {
                 confidence: 0.0,
                 related_errors: vec![],
                 unrelated_errors: vec![],
+                errors_found: None,
+                patterns: None,
+                performance: None,
+                anomalies: None,
             });
         }
 
@@ -303,6 +307,10 @@ impl LogLens {
                 confidence: 0.0,
                 related_errors: vec![],
                 unrelated_errors: vec![],
+                errors_found: None,
+                patterns: None,
+                performance: None,
+                anomalies: None,
             };
 
             return Ok(McpResponse {
