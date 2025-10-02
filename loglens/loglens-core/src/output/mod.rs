@@ -139,7 +139,7 @@ fn calculate_stats(logs: &[ProcessedLogEntry]) -> ReportStats {
     let mut debug_count = 0;
     
     for log in logs {
-        match log.level.as_ref().map(|s| s.as_str()) {
+        match log.level.as_deref() {
             Some("ERROR") => error_count += 1,
             Some("WARN") | Some("WARNING") => warning_count += 1,
             Some("INFO") => info_count += 1,

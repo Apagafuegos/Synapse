@@ -46,7 +46,7 @@ impl AppState {
         db.migrate().await?;
 
         // Create performance indexes
-        if let Err(e) = performance::create_performance_indexes(&db.pool()).await {
+        if let Err(e) = performance::create_performance_indexes(db.pool()).await {
             tracing::warn!("Failed to create performance indexes: {}", e);
         }
 
@@ -105,7 +105,7 @@ impl AppState {
         let mut services = std::collections::HashMap::new();
         
         // Check database health
-        services.insert("database".to_string(), error_handling::check_database_health(&self.db.pool()).await);
+        services.insert("database".to_string(), error_handling::check_database_health(self.db.pool()).await);
         
         // Check cache health
         services.insert("cache".to_string(), error_handling::check_cache_health(&self.cache_manager).await);

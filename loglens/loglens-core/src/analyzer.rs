@@ -1,8 +1,3 @@
-mod patterns;
-mod performance;
-mod anomaly;
-mod correlation;
-
 use crate::ai_provider::{
     AIProvider, AnalysisRequest, AnalysisResponse, AnalysisFocus, RootCauseAnalysis,
     ErrorAnalysis, PatternAnalysisSimple, PerformanceAnalysisSimple, AnomalyAnalysisSimple
@@ -13,11 +8,7 @@ use crate::input::LogEntry;
 use crate::slimmer::{slim_logs_with_mode, SlimmingMode};
 use anyhow::Result;
 use std::collections::HashMap;
-use tracing::{info, error, warn, debug};
-use patterns::PatternAnalyzer;
-use performance::PerformanceAnalyzer;
-use anomaly::AnomalyDetector;
-use correlation::CorrelationAnalyzer;
+use tracing::{info, warn, debug};
 
 #[derive(Debug, Clone, PartialEq)]
 enum ProcessingStrategy {
@@ -81,10 +72,6 @@ pub struct AnalysisProgress {
 
 pub struct Analyzer {
     provider: Box<dyn AIProvider>,
-    pattern_analyzer: PatternAnalyzer,
-    performance_analyzer: PerformanceAnalyzer,
-    anomaly_detector: AnomalyDetector,
-    correlation_analyzer: CorrelationAnalyzer,
     config: AnalysisConfig,
 }
 
@@ -92,10 +79,6 @@ impl Analyzer {
     pub fn new(provider: Box<dyn AIProvider>) -> Self {
         Self {
             provider,
-            pattern_analyzer: PatternAnalyzer::new(),
-            performance_analyzer: PerformanceAnalyzer::new(),
-            anomaly_detector: AnomalyDetector::new(),
-            correlation_analyzer: CorrelationAnalyzer::new(),
             config: AnalysisConfig::default(),
         }
     }
@@ -575,7 +558,7 @@ impl Analyzer {
         let mut error_map: HashMap<String, (Vec<usize>, Vec<String>)> = HashMap::new();
 
         for (idx, entry) in entries.iter().enumerate() {
-            if entry.level.as_ref().map_or(false, |l| l == "ERROR") {
+            if entry.level.as_ref().is_some_and(|l| l == "ERROR") {
                 let key = entry.message.chars().take(100).collect::<String>();
                 error_map.entry(key.clone())
                     .or_insert_with(|| (Vec::new(), Vec::new()))
@@ -617,7 +600,7 @@ impl Analyzer {
                 .take(5)
                 .collect::<Vec<&str>>()
                 .join(" ");
-            pattern_map.entry(pattern).or_insert_with(Vec::new).push(idx);
+            pattern_map.entry(pattern).or_default().push(idx);
         }
 
         let mut patterns: Vec<PatternAnalysisSimple> = pattern_map.into_iter()
@@ -646,8 +629,8 @@ impl Analyzer {
 
     fn generate_performance_analytics(&self, entries: &[LogEntry]) -> PerformanceAnalysisSimple {
 
-        let error_count = entries.iter().filter(|e| e.level.as_ref().map_or(false, |l| l == "ERROR")).count();
-        let warn_count = entries.iter().filter(|e| e.level.as_ref().map_or(false, |l| l == "WARN")).count();
+        let error_count = entries.iter().filter(|e| e.level.as_ref().is_some_and(|l| l == "ERROR")).count();
+        let warn_count = entries.iter().filter(|e| e.level.as_ref().is_some_and(|l| l == "WARN")).count();
         let total_count = entries.len();
 
         let mut metrics = HashMap::new();

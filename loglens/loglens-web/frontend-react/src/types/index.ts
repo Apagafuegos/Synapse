@@ -54,7 +54,6 @@ export interface AnalysisRequest {
   provider: string;
   level: string;
   max_lines?: number;
-  selected_model?: string;
   timeout_seconds?: number;
 }
 
@@ -241,13 +240,10 @@ export interface ModelInfo {
   name: string;
   provider: string;
   description?: string;
-  context_limit: number;
+  context_limit?: number;
   supports_streaming: boolean;
-  pricing?: {
-    input_token_cost: number;
-    output_token_cost: number;
-    currency: string;
-  };
+  capabilities: string[];
+  pricing_tier?: string;
 }
 
 export interface ModelListResponse {

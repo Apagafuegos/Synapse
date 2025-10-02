@@ -218,7 +218,7 @@ CRITICAL REQUIREMENTS:
         if let Some(summary) = &payload.unrelated_summary {
             prompt.push_str("\nUNRELATED ERRORS SUMMARY:\n");
             prompt.push_str(summary);
-            prompt.push_str("\n");
+            prompt.push('\n');
         }
 
         prompt.push_str(&format!(

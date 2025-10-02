@@ -1,11 +1,42 @@
-import { defineConfig } from 'vite';
+import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import wasm from 'vite-plugin-wasm';
 import path from 'path';
+import fs from 'fs';
+
+// SPA fallback plugin for client-side routing
+function spaFallback(): Plugin {
+  return {
+    name: 'spa-fallback',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = req.url || '';
+
+        // Skip API and WebSocket requests
+        if (url.startsWith('/api') || url.startsWith('/ws')) {
+          return next();
+        }
+
+        // Skip files with extensions (assets)
+        if (path.extname(url)) {
+          return next();
+        }
+
+        // For all other requests, serve index.html
+        const indexPath = path.resolve(__dirname, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          req.url = '/index.html';
+        }
+
+        next();
+      });
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), wasm()],
+  plugins: [react(), wasm(), spaFallback()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -32,6 +63,7 @@ export default defineConfig({
       },
     },
   },
+  appType: 'spa',
   build: {
     target: 'esnext',
     rollupOptions: {

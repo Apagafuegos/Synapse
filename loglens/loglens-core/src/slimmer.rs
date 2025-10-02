@@ -3,8 +3,10 @@ use std::collections::HashMap;
 use regex::Regex;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Default)]
 pub enum SlimmingMode {
     /// Light slimming - basic duplicate removal and message truncation
+    #[default]
     Light,
     /// Aggressive slimming - pattern-based compression and heavy deduplication
     Aggressive,
@@ -12,11 +14,6 @@ pub enum SlimmingMode {
     Ultra,
 }
 
-impl Default for SlimmingMode {
-    fn default() -> Self {
-        SlimmingMode::Light
-    }
-}
 
 pub fn slim_logs(entries: Vec<LogEntry>) -> Vec<LogEntry> {
     slim_logs_with_mode(entries, SlimmingMode::default())

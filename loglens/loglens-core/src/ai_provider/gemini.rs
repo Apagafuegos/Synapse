@@ -126,7 +126,7 @@ impl AIProvider for GeminiProvider {
 
         let response = self
             .client
-            .post(&self.get_endpoint())
+            .post(self.get_endpoint())
             .header("Content-Type", "application/json")
             .json(&gemini_request)
             .send()
@@ -193,6 +193,7 @@ impl AIProvider for GeminiProvider {
                 context_length: Some(1000000),
                 pricing_tier: Some("low".to_string()),
                 capabilities: vec!["chat".to_string(), "vision".to_string(), "analysis".to_string()],
+                supports_streaming: true,
                 provider: "gemini".to_string(),
             },
             ModelInfo {
@@ -202,6 +203,7 @@ impl AIProvider for GeminiProvider {
                 context_length: Some(2000000),
                 pricing_tier: Some("high".to_string()),
                 capabilities: vec!["chat".to_string(), "vision".to_string(), "analysis".to_string()],
+                supports_streaming: true,
                 provider: "gemini".to_string(),
             },
         ];

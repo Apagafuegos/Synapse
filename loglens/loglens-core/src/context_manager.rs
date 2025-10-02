@@ -290,6 +290,12 @@ pub struct ContextMeta {
     pub truncated: bool,
 }
 
+impl Default for AIAnalysisPayload {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AIAnalysisPayload {
     pub fn new() -> Self {
         Self {

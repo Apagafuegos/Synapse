@@ -60,7 +60,7 @@ impl ConsoleOutput {
             "🔍 ANALYSIS RESULTS\n\n📜 SEQUENCE OF EVENTS:\n{}\n\n⚠️  ROOT CAUSE:\n{}\n\n🎯 LOCATION:\n{}",
             self.wrap_text(&analysis.sequence_of_events, 60),
             self.wrap_text(&analysis.root_cause.description, 60),
-            self.wrap_text(&analysis.root_cause.file_location.as_deref().unwrap_or("Unknown"), 60)
+            self.wrap_text(analysis.root_cause.file_location.as_deref().unwrap_or("Unknown"), 60)
         )
     }
     
@@ -95,7 +95,7 @@ impl ConsoleOutput {
         let mut line = String::new();
         
         for word in text.split_whitespace() {
-            if line.len() + word.len() + 1 <= width {
+            if line.len() + word.len() < width {
                 if !line.is_empty() {
                     line.push(' ');
                 }

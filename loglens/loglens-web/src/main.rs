@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower::ServiceBuilder;
-use tower_http::{cors::CorsLayer, trace::TraceLayer, services::ServeDir};
+use tower_http::{cors::CorsLayer, trace::TraceLayer, services::{ServeDir, ServeFile}};
 
 mod cache;
 mod circuit_breaker;
@@ -70,13 +70,13 @@ async fn main() -> anyhow::Result<()> {
     
     if let Err(e) = db.migrate().await {
         tracing::error!("Failed to migrate database: {}", e);
-        return Err(e.into());
+        return Err(e);
     } else {
         tracing::info!("Database migrations completed");
     }
 
     // Create performance indexes
-    if let Err(e) = create_performance_indexes(&db.pool()).await {
+    if let Err(e) = create_performance_indexes(db.pool()).await {
         tracing::warn!("Failed to create performance indexes: {}", e);
     } else {
         tracing::info!("Performance indexes created successfully");
@@ -159,7 +159,7 @@ pub async fn create_app(
         .nest_service(
             "/",
             ServeDir::new(&frontend_path)
-                .not_found_service(ServeDir::new(&index_path))
+                .not_found_service(ServeFile::new(&index_path))
         )
         .fallback(handle_404)
         .layer(
@@ -196,7 +196,7 @@ async fn enhanced_health_check(
     // Check database health
     services.insert(
         "database".to_string(),
-        check_database_health(&state.db.pool()).await,
+        check_database_health(state.db.pool()).await,
     );
 
     // Check cache health

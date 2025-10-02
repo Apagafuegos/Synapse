@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 use schemars::JsonSchema;
 use std::fs;
 use tokio::process::Command;
-use tracing::{info, error, warn, debug};
+use tracing::{info, error, debug};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LogEntry {
@@ -80,7 +80,7 @@ pub async fn execute_and_capture(command: &str) -> Result<Vec<String>> {
 
 /// Detect file encoding and create appropriate decoder
 fn detect_and_create_decoder(data: &[u8]) -> (&'static encoding_rs::Encoding, f64, encoding_rs::Decoder) {
-    use encoding_rs::{UTF_8, UTF_16LE, UTF_16BE, WINDOWS_1252, ISO_8859_2, ISO_8859_3};
+    use encoding_rs::{UTF_8, UTF_16LE, UTF_16BE, WINDOWS_1252};
 
     // Simple heuristics for encoding detection
     if data.is_empty() {
@@ -226,7 +226,7 @@ fn analyze_latin1_content(data: &[u8]) -> (f64, bool) {
             if byte < 0x20 && !matches!(byte, 0x09 | 0x0A | 0x0D) {
                 control_chars += 1;
             }
-        } else if byte >= 0x80 && byte <= 0xFF {
+        } else if (0x80..=0xFF).contains(&byte) {
             // High-bit set (potential Latin-1)
             high_bit_chars += 1;
 

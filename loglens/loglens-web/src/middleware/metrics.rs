@@ -80,6 +80,12 @@ pub enum AlertSeverity {
     Critical,
 }
 
+impl Default for MetricsCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MetricsCollector {
     pub fn new() -> Self {
         let (alerts_tx, _) = broadcast::channel(1000);
@@ -226,7 +232,7 @@ impl MetricsCollector {
 
         // Send alerts
         for alert in alerts {
-            if let Err(_) = self.alerts.send(alert.clone()) {
+            if self.alerts.send(alert.clone()).is_err() {
                 tracing::warn!("Failed to send quality alert: {:?}", alert);
             }
         }
@@ -326,7 +332,7 @@ impl MetricsCollector {
         if success {
             quality_metrics.analysis_completion_rate = (quality_metrics.analysis_completion_rate * 0.9) + 0.1;
         } else {
-            quality_metrics.analysis_completion_rate = quality_metrics.analysis_completion_rate * 0.9;
+            quality_metrics.analysis_completion_rate *= 0.9;
         }
     }
 

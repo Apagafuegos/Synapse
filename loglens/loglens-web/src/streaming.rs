@@ -78,6 +78,12 @@ pub struct StreamingHub {
     pub connections: Arc<RwLock<HashMap<Uuid, usize>>>,
 }
 
+impl Default for StreamingHub {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StreamingHub {
     pub fn new() -> Self {
         let (sender, _) = broadcast::channel(BROADCAST_CAPACITY);

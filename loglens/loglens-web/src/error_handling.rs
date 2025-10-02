@@ -386,7 +386,7 @@ pub mod validation {
         let limit = limit.unwrap_or(50);
         let offset = offset.unwrap_or(0);
 
-        if limit < 1 || limit > 1000 {
+        if !(1..=1000).contains(&limit) {
             return Err(AppError::validation(
                 "Limit must be between 1 and 1000".to_string(),
             ));

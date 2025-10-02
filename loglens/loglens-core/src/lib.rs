@@ -18,7 +18,7 @@ pub mod output;
 pub mod parser;
 pub mod slimmer;
 
-pub use ai_provider::{create_provider, AIProvider, AnalysisRequest, AnalysisResponse, AIError, AnalysisFocus, RootCauseAnalysis, OpenRouterProvider, OpenAIProvider, ClaudeProvider, GeminiProvider};
+pub use ai_provider::{create_provider, create_provider_with_model, AIProvider, AnalysisRequest, AnalysisResponse, AIError, AnalysisFocus, RootCauseAnalysis, OpenRouterProvider, OpenAIProvider, ClaudeProvider, GeminiProvider};
 pub use analyzer::{Analyzer, AnalysisConfig, AnalysisProgress};
 pub use classification::{ErrorClassifier, ErrorClassification, ErrorCategory, Severity};
 pub use context_manager::{ContextManager, RelevanceScorer, AIAnalysisPayload, ContextStats};
@@ -261,28 +261,12 @@ impl LogLens {
                 ))?,
         };
 
-        // Analyze with AI using enhanced analysis
-        let mut provider = create_provider(provider_name, &api_key)?;
-
-        // Apply selected model if provided
-        if let Some(model) = selected_model {
-            info!("Applying selected model to provider: {}", model);
-            provider = match provider_name.to_lowercase().as_str() {
-                "openrouter" => {
-                    Box::new(OpenRouterProvider::new(api_key.clone()).with_model(model.to_string()))
-                }
-                "openai" => {
-                    Box::new(OpenAIProvider::new(api_key.clone()).with_model(model.to_string()))
-                }
-                "claude" | "anthropic" => {
-                    Box::new(ClaudeProvider::new(api_key.clone()).with_model(model.to_string()))
-                }
-                "gemini" => {
-                    Box::new(GeminiProvider::new(api_key.clone()).with_model(model.to_string()))
-                }
-                _ => provider, // Use default if provider doesn't support model selection
-            };
-        }
+        // Analyze with AI using enhanced analysis with optional model selection
+        let provider = create_provider_with_model(
+            provider_name,
+            &api_key,
+            selected_model.map(|s| s.to_string())
+        )?;
 
         // Configure analyzer for large logs
         let analysis_config = AnalysisConfig {
@@ -460,7 +444,7 @@ impl LogLens {
                     slimmed_entries.clone(),
                     &request.provider,
                     &request.level,
-                    &request.input_source.as_deref().unwrap_or("stdin"),
+                    request.input_source.as_deref().unwrap_or("stdin"),
                     output_format,
                 )?)
             } else {

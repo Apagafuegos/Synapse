@@ -37,7 +37,7 @@ pub fn parse_single_log_line(line: &str, timestamp_regex: &Regex) -> LogEntry {
             format!("[{}]", lvl),
             format!("({})", lvl),
             format!("{}:", lvl),
-            format!("{}", lvl),
+            lvl.to_string(),
         ];
         
         for pattern in &level_patterns {

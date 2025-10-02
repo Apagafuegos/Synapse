@@ -366,6 +366,7 @@ impl AIProvider for OpenRouterProvider {
                     context_length: model.context_length,
                     pricing_tier,
                     capabilities: vec!["chat".to_string(), "completion".to_string()],
+                    supports_streaming: true, // OpenRouter supports streaming for all models
                     provider: "openrouter".to_string(),
                 }
             })

@@ -45,7 +45,7 @@ pub async fn start_analysis(
 
     // Validate timeout if provided
     let timeout_seconds = if let Some(timeout) = req.timeout_seconds {
-        if timeout < 60 || timeout > 1800 { // 1 minute to 30 minutes
+        if !(60..=1800).contains(&timeout) { // 1 minute to 30 minutes
             return Err(StatusCode::BAD_REQUEST);
         }
         timeout
@@ -109,34 +109,34 @@ pub async fn start_analysis(
     let provider = sanitized_provider.clone();
     let level = sanitized_level.clone();
     let user_context = sanitized_context.clone();
-    let selected_model = req.selected_model.clone();
     let circuit_breakers = state.circuit_breakers.clone();
 
     tokio::spawn(async move {
         tracing::info!("🚀 Starting analysis {} for file: {}", analysis_id, file_path);
 
-        // Fetch API key from settings
-        let api_key = match sqlx::query!("SELECT api_key FROM settings LIMIT 1")
+        // Fetch API key and selected model from settings
+        let (api_key, selected_model) = match sqlx::query!("SELECT api_key, selected_model FROM settings LIMIT 1")
             .fetch_optional(&db_pool)
             .await
         {
             Ok(Some(settings)) if !settings.api_key.is_empty() => {
                 tracing::info!("📝 API key found for analysis {}", analysis_id);
-                Some(settings.api_key)
+                tracing::info!("🎯 Selected model from settings: {:?}", settings.selected_model);
+                (Some(settings.api_key), settings.selected_model)
             },
             Ok(_) => {
                 tracing::warn!("⚠️ No API key found in settings for analysis {}", analysis_id);
-                None
+                (None, None)
             },
             Err(e) => {
-                tracing::error!("❌ Failed to fetch API key from settings for analysis {}: {}", analysis_id, e);
-                None
+                tracing::error!("❌ Failed to fetch settings for analysis {}: {}", analysis_id, e);
+                (None, None)
             }
         };
 
         tracing::info!("🔄 Calling perform_analysis_with_context for {} with provider: {}, level: {}, timeout: {}s", analysis_id, provider, level, timeout_seconds);
         tracing::info!("📝 User context provided: {}", user_context.is_some());
-        tracing::info!("🎯 Selected model: {:?}", selected_model);
+        tracing::info!("🎯 Using model: {:?}", selected_model);
         
         // Use enhanced analysis function that supports context and model selection
         let result = perform_analysis_with_context(
@@ -1028,7 +1028,7 @@ fn read_file_with_encoding_detection(data: &[u8]) -> anyhow::Result<Vec<String>>
             tracing::info!("📊 Parsed {} lines from the file", lines.len());
 
             // Log some encoding detection info if available
-            if lines.len() > 0 {
+            if !lines.is_empty() {
                 tracing::debug!("📝 First line preview: {}",
                     if lines[0].len() > 100 {
                         format!("{}...", &lines[0][..100])

@@ -256,7 +256,7 @@ impl StreamingSourceManager {
                                 // Check if we should flush the buffer
                                 if buffer.len() >= config.buffer_size ||
                                    last_flush.elapsed() >= config.batch_timeout {
-                                    streaming_hub.add_logs(config.project_id, source_id, buffer.drain(..).collect()).await?;
+                                    streaming_hub.add_logs(config.project_id, source_id, std::mem::take(&mut buffer)).await?;
                                     last_flush = Instant::now();
                                 }
                             }
@@ -326,7 +326,7 @@ impl StreamingSourceManager {
                                 // Check if we should flush the buffer
                                 if buffer.len() >= config.buffer_size ||
                                    last_flush.elapsed() >= config.batch_timeout {
-                                    streaming_hub.add_logs(config.project_id, source_id, buffer.drain(..).collect()).await?;
+                                    streaming_hub.add_logs(config.project_id, source_id, std::mem::take(&mut buffer)).await?;
                                     last_flush = Instant::now();
                                 }
                             }
@@ -378,7 +378,7 @@ impl StreamingSourceManager {
                                 // Check if we should flush the buffer
                                 if buffer.len() >= config.buffer_size ||
                                    last_flush.elapsed() >= config.batch_timeout {
-                                    streaming_hub.add_logs(config.project_id, source_id, buffer.drain(..).collect()).await?;
+                                    streaming_hub.add_logs(config.project_id, source_id, std::mem::take(&mut buffer)).await?;
                                     last_flush = Instant::now();
                                 }
                             }
@@ -467,7 +467,7 @@ impl StreamingSourceManager {
                         // Check if we should flush the buffer
                         if buffer.len() >= config.buffer_size ||
                            last_flush.elapsed() >= config.batch_timeout {
-                            streaming_hub.add_logs(config.project_id, &source_id, buffer.drain(..).collect()).await?;
+                            streaming_hub.add_logs(config.project_id, &source_id, std::mem::take(&mut buffer)).await?;
                             last_flush = Instant::now();
                         }
                     }

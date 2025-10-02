@@ -29,7 +29,6 @@ function ProjectDetail() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showAnalysisOptions, setShowAnalysisOptions] = useState<string | null>(null);
   const [userContext, setUserContext] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<string>('');
   const [timeoutSeconds, setTimeoutSeconds] = useState<number>(300);
   
   const queryClient = useQueryClient();
@@ -103,11 +102,10 @@ function ProjectDetail() {
 
   // Create analysis mutation
   const createAnalysisMutation = useMutation(
-    ({ fileId, options }: { fileId: string; options?: { userContext?: string; selectedModel?: string; timeoutSeconds?: number } }) => id ? api.analysis.create(id, fileId, {
+    ({ fileId, options }: { fileId: string; options?: { userContext?: string; timeoutSeconds?: number } }) => id ? api.analysis.create(id, fileId, {
       provider: getProvider(),
       level: getLevel(),
       user_context: options?.userContext,
-      selected_model: options?.selectedModel,
       timeout_seconds: options?.timeoutSeconds
     }) : Promise.reject('No project ID'),
     {
@@ -116,7 +114,6 @@ function ProjectDetail() {
         setAnalysisError(null);
         // Reset analysis options
         setUserContext('');
-        setSelectedModel('');
         setTimeoutSeconds(300);
         setShowAnalysisOptions(null);
       },
@@ -408,7 +405,6 @@ function ProjectDetail() {
                       type="button"
                       onClick={() => handleStartAnalysis(file.id, {
                         userContext: userContext || undefined,
-                        selectedModel: selectedModel || undefined,
                         timeoutSeconds: timeoutSeconds
                       })}
                       disabled={analyzingFiles.has(file.id) || settingsLoading || !isConfigured()}
@@ -459,28 +455,7 @@ function ProjectDetail() {
                         </span>
                       </div>
                     </div>
-                    
-                    {/* Model Selection */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Model Selection (optional)
-                      </label>
-                      <select
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white text-sm"
-                        value={selectedModel}
-                        onChange={(e) => setSelectedModel(e.target.value)}
-                      >
-                        <option value="">Use default model</option>
-                        {/* This would be populated from available models */}
-                        <option value="gpt-4">GPT-4</option>
-                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                        <option value="claude-3">Claude 3</option>
-                      </select>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Override the default model for this analysis
-                      </p>
-                    </div>
-                    
+
                     {/* Timeout Configuration */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">

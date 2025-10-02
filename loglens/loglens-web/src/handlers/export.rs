@@ -4,9 +4,7 @@ use axum::{
     response::{Json, Response},
 };
 use serde::{Deserialize, Serialize};
-use pulldown_cmark::{html, Options, Parser};
 use std::process::Command;
-use std::fs;
 use std::io::Write;
 use tempfile::NamedTempFile;
 
@@ -59,14 +57,14 @@ pub async fn export_html_report(
     // Generate HTML report
     let html_content = generate_html_report(&analysis, params.include_charts.unwrap_or(true));
 
-    Ok(Response::builder()
+    Response::builder()
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
         .header(
             header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"loglens_analysis_{}.html\"", analysis_id),
         )
         .body(html_content.into())
-        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // JSON Export
@@ -79,14 +77,14 @@ pub async fn export_json_data(
     let json_data =
         serde_json::to_string_pretty(&analysis).map_err(|_: serde_json::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(Response::builder()
+    Response::builder()
         .header(header::CONTENT_TYPE, "application/json")
         .header(
             header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"loglens_analysis_{}.json\"", analysis_id),
         )
         .body(json_data.into())
-        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // CSV Export
@@ -98,14 +96,14 @@ pub async fn export_csv_data(
 
     let csv_content = generate_csv_report(&analysis, &analysis_id);
 
-    Ok(Response::builder()
+    Response::builder()
         .header(header::CONTENT_TYPE, "text/csv")
         .header(
             header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"loglens_analysis_{}.csv\"", analysis_id),
         )
         .body(csv_content.into())
-        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // Markdown Export
@@ -117,14 +115,14 @@ pub async fn export_markdown_report(
 
     let markdown_content = generate_markdown_report(&analysis, &analysis_id);
 
-    Ok(Response::builder()
+    Response::builder()
         .header(header::CONTENT_TYPE, "text/markdown")
         .header(
             header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"loglens_analysis_{}.md\"", analysis_id),
         )
         .body(markdown_content.into())
-        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // PDF Export
@@ -295,7 +293,7 @@ fn generate_markdown_report(analysis: &serde_json::Value, analysis_id: &str) -> 
         .unwrap_or_default();
 
     // Title and metadata
-    markdown.push_str(&format!("# LogLens Analysis Report\n\n"));
+    markdown.push_str("# LogLens Analysis Report\n\n");
     markdown.push_str(&format!("**Analysis ID:** {}\n\n", analysis_id));
 
     markdown.push_str("## Summary\n\n");
@@ -396,7 +394,7 @@ fn generate_markdown_report(analysis: &serde_json::Value, analysis_id: &str) -> 
                             .and_then(|t| t.as_str())
                             .unwrap_or("unknown")
                     ));
-                    markdown.push_str("\n");
+                    markdown.push('\n');
                 }
             }
         }
@@ -497,7 +495,7 @@ pub async fn create_share_link(
     .bind(&share_id)
     .bind(&project_id)
     .bind(&title)
-    .bind(&format!("Shared analysis: {}", req.analysis_id))
+    .bind(format!("Shared analysis: {}", req.analysis_id))
     .bind(&solution_json)
     .bind(&tags_json)
     .bind("low")
@@ -553,10 +551,10 @@ pub async fn get_shared_analysis(
     // Generate HTML view for shared analysis
     let html_content = generate_shared_html_view(&analysis, &share_info);
 
-    Ok(Response::builder()
+    Response::builder()
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
         .body(html_content.into())
-        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 // Export history
@@ -580,7 +578,7 @@ async fn get_analysis_with_related_data(
          FROM analyses WHERE id = ? AND project_id = ?"
     )
     .bind(analysis_id)
-    .bind(&project_id)
+    .bind(project_id)
     .fetch_optional(state.db.pool())
     .await
     .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?
@@ -592,7 +590,7 @@ async fn get_analysis_with_related_data(
          WHERE project_id = ? AND (primary_error_id = ? OR correlated_error_id = ?)
          ORDER BY correlation_strength DESC"
     )
-    .bind(&project_id)
+    .bind(project_id)
     .bind(analysis_id)
     .bind(analysis_id)
     .fetch_all(state.db.pool())

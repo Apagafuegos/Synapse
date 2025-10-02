@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use std::collections::HashMap;
-use tracing::{info, error, warn, debug};
+use tracing::{info, error, debug};
 use crate::context_manager::AIAnalysisPayload;
 use crate::classification::ErrorCategory;
 
@@ -117,9 +117,11 @@ pub struct ModelInfo {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
+    #[serde(rename = "context_limit")]
     pub context_length: Option<u32>,
     pub pricing_tier: Option<String>,
     pub capabilities: Vec<String>,
+    pub supports_streaming: bool,
     pub provider: String,
 }
 
@@ -138,23 +140,43 @@ pub trait AIProvider: Send + Sync {
 }
 
 pub fn create_provider(provider_name: &str, api_key: &str) -> Result<Box<dyn AIProvider>> {
-    info!("Creating AI provider: {}", provider_name);
+    create_provider_with_model(provider_name, api_key, None)
+}
+
+pub fn create_provider_with_model(provider_name: &str, api_key: &str, model: Option<String>) -> Result<Box<dyn AIProvider>> {
+    info!("Creating AI provider: {} with model: {:?}", provider_name, model);
     match provider_name.to_lowercase().as_str() {
         "openrouter" => {
             debug!("Initializing OpenRouter provider");
-            Ok(Box::new(OpenRouterProvider::new(api_key.to_string())))
+            let mut provider = OpenRouterProvider::new(api_key.to_string());
+            if let Some(model_id) = model {
+                provider = provider.with_model(model_id);
+            }
+            Ok(Box::new(provider))
         }
         "openai" => {
             debug!("Initializing OpenAI provider");
-            Ok(Box::new(OpenAIProvider::new(api_key.to_string())))
+            let mut provider = OpenAIProvider::new(api_key.to_string());
+            if let Some(model_id) = model {
+                provider = provider.with_model(model_id);
+            }
+            Ok(Box::new(provider))
         }
         "claude" | "anthropic" => {
             debug!("Initializing Claude/Anthropic provider");
-            Ok(Box::new(ClaudeProvider::new(api_key.to_string())))
+            let mut provider = ClaudeProvider::new(api_key.to_string());
+            if let Some(model_id) = model {
+                provider = provider.with_model(model_id);
+            }
+            Ok(Box::new(provider))
         }
         "gemini" => {
             debug!("Initializing Gemini provider");
-            Ok(Box::new(GeminiProvider::new(api_key.to_string())))
+            let mut provider = GeminiProvider::new(api_key.to_string());
+            if let Some(model_id) = model {
+                provider = provider.with_model(model_id);
+            }
+            Ok(Box::new(provider))
         }
         _ => {
             error!("Unsupported AI provider: {}", provider_name);

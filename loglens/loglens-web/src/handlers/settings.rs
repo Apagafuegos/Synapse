@@ -102,7 +102,7 @@ pub async fn update_settings(
 
     // Validate timeout if provided
     if let Some(timeout) = settings.analysis_timeout_seconds {
-        if timeout < 60 || timeout > 1800 { // 1 minute to 30 minutes
+        if !(60..=1800).contains(&timeout) { // 1 minute to 30 minutes
             return Err(StatusCode::BAD_REQUEST);
         }
     }

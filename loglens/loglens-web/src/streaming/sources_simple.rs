@@ -21,6 +21,12 @@ pub struct StreamingSourceConfig {
     pub is_active: bool,
 }
 
+impl Default for StreamingSourceManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StreamingSourceManager {
     pub fn new() -> Self {
         Self {

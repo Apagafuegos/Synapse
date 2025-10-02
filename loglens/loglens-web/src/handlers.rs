@@ -21,7 +21,5 @@ pub use files::*;
 pub use knowledge::*;
 pub use mcp::*;
 pub use mcp_enhanced::*;
-pub use models::*;
 pub use projects::*;
-pub use settings::*;
 pub use templates::*;

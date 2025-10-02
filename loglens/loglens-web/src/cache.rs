@@ -26,7 +26,7 @@ impl<T> CacheEntry<T> {
     }
 
     pub fn is_expired(&self) -> bool {
-        self.expires_at.map_or(false, |exp| SystemTime::now().duration_since(exp).is_ok())
+        self.expires_at.is_some_and(|exp| SystemTime::now().duration_since(exp).is_ok())
     }
 
     pub fn access(&mut self) -> &T {

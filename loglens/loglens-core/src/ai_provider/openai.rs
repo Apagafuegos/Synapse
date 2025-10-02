@@ -172,6 +172,7 @@ impl AIProvider for OpenAIProvider {
                 context_length: Some(8192),
                 pricing_tier: Some("high".to_string()),
                 capabilities: vec!["chat".to_string(), "completion".to_string()],
+                supports_streaming: true,
                 provider: "openai".to_string(),
             },
             ModelInfo {
@@ -181,6 +182,7 @@ impl AIProvider for OpenAIProvider {
                 context_length: Some(128000),
                 pricing_tier: Some("high".to_string()),
                 capabilities: vec!["chat".to_string(), "completion".to_string()],
+                supports_streaming: true,
                 provider: "openai".to_string(),
             },
             ModelInfo {
@@ -190,6 +192,7 @@ impl AIProvider for OpenAIProvider {
                 context_length: Some(4096),
                 pricing_tier: Some("medium".to_string()),
                 capabilities: vec!["chat".to_string(), "completion".to_string()],
+                supports_streaming: true,
                 provider: "openai".to_string(),
             },
         ];

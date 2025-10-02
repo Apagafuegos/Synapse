@@ -98,7 +98,7 @@ impl PerformanceMetric {
         unit: String,
         threshold_value: Option<f64>,
     ) -> Self {
-        let is_bottleneck = threshold_value.map_or(false, |threshold| metric_value > threshold);
+        let is_bottleneck = threshold_value.is_some_and(|threshold| metric_value > threshold);
         Self {
             id: Uuid::new_v4().to_string(),
             analysis_id,
@@ -218,7 +218,6 @@ pub struct AnalysisRequest {
     pub provider: String,
     pub level: String,
     pub user_context: Option<String>,
-    pub selected_model: Option<String>,
     pub timeout_seconds: Option<u32>,
 }
 

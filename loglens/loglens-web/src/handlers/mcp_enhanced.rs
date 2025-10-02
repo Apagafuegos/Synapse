@@ -258,7 +258,7 @@ pub async fn get_mcp_context(
         ticket_id: format!("{}-CONTEXT", analysis_id),
         context_payload: context_payload.clone(),
         detail_level: params.detail_level,
-        size_bytes: context_payload.clone().as_bytes().len(),
+        size_bytes: context_payload.clone().len(),
         created_at: chrono::Utc::now().to_rfc3339(),
     };
 

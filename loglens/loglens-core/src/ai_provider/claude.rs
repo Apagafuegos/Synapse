@@ -149,7 +149,8 @@ impl AIProvider for ClaudeProvider {
                 description: Some("Most intelligent model".to_string()),
                 context_length: Some(200000),
                 pricing_tier: Some("high".to_string()),
-                capabilities: vec!["chat".to_string(), "analysis".to_string()],
+                capabilities: vec!["chat".to_string(), "analysis".to_string(), "vision".to_string()],
+                supports_streaming: true,
                 provider: "claude".to_string(),
             },
             ModelInfo {
@@ -159,6 +160,7 @@ impl AIProvider for ClaudeProvider {
                 context_length: Some(200000),
                 pricing_tier: Some("low".to_string()),
                 capabilities: vec!["chat".to_string(), "analysis".to_string()],
+                supports_streaming: true,
                 provider: "claude".to_string(),
             },
         ];
