@@ -8,6 +8,13 @@ pub struct Database {
 
 impl Database {
     pub async fn new(database_url: &str) -> Result<Self> {
+        // Ensure parent directory exists
+        if let Some(db_path) = database_url.strip_prefix("sqlite://") {
+            if let Some(parent) = std::path::Path::new(db_path).parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+
         // Create database if it doesn't exist
         if !Sqlite::database_exists(database_url).await.unwrap_or(false) {
             println!("Creating database at {}", database_url);

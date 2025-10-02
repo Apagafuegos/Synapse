@@ -60,6 +60,11 @@ export interface AnalysisRequest {
 
 export interface AnalysisResult {
   summary: string;
+  sequence_of_events?: string;
+  root_cause?: {
+    description?: string;
+    confidence?: number;
+  };
   errors_found: ErrorAnalysis[];
   patterns: PatternAnalysis[];
   performance: PerformanceAnalysis;
@@ -67,6 +72,8 @@ export interface AnalysisResult {
   correlations: CorrelationAnalysis[];
   recommendations: string[];
   confidence_score: number;
+  related_errors?: string[];
+  unrelated_errors?: string[];
 }
 
 export interface ErrorAnalysis {

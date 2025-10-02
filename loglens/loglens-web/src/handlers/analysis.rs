@@ -54,7 +54,7 @@ pub async fn start_analysis(
         let settings_timeout = sqlx::query!("SELECT analysis_timeout_seconds FROM settings WHERE id = 1")
             .fetch_optional(state.db.pool())
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?
             .and_then(|row| row.analysis_timeout_seconds)
             .unwrap_or(300);
         settings_timeout as u32
@@ -100,7 +100,7 @@ pub async fn start_analysis(
     )
     .execute(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Start analysis in background with sanitized values
     let analysis_id = analysis.id.clone();
@@ -295,7 +295,7 @@ pub async fn list_analyses(
     )
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
     let total = total_row.count;
 
     // Get analyses with optional file information
@@ -317,7 +317,7 @@ pub async fn list_analyses(
     )
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let mut analyses = Vec::new();
     for row in analyses_with_files {
@@ -343,7 +343,7 @@ pub async fn list_analyses(
             result: row.result,
             error_message: row.error_message,
             started_at: row.started_at.and_utc(),
-            completed_at: row.completed_at.map(|dt| dt.and_utc()),
+            completed_at: row.completed_at.map(|dt: chrono::NaiveDateTime| dt.and_utc()),
         };
 
         analyses.push(AnalysisWithFile {
@@ -648,8 +648,8 @@ async fn analyze_large_file_streaming(
 
     tracing::info!("🤖 Sending {} log entries to AI provider '{}'...", logs.len(), provider);
 
-    // Perform analysis with the collected logs
-    analyze_lines(logs, level, provider, api_key).await.map_err(|e| {
+    // Perform analysis with the collected logs (no model selection for streaming)
+    analyze_lines(logs, level, provider, api_key, None).await.map_err(|e| {
         tracing::error!("❌ AI analysis failed: {}", e);
         tracing::error!("❌ Error details: {:#}", e);
         e
@@ -724,7 +724,8 @@ async fn analyze_large_file(
 
     tracing::info!("🤖 Sending {} log entries to AI provider '{}'...", filtered_logs.len(), provider);
 
-    analyze_lines(filtered_logs, level, provider, api_key).await.map_err(|e| {
+    // No model selection for analyze_large_file (backward compatibility)
+    analyze_lines(filtered_logs, level, provider, api_key, None).await.map_err(|e| {
         tracing::error!("❌ AI analysis failed: {}", e);
         tracing::error!("❌ Error details: {:#}", e);
         e
@@ -805,9 +806,8 @@ async fn analyze_large_file_with_context(
     tracing::info!("📝 User context will be included: {}", user_context.is_some());
     tracing::info!("🎯 Selected model will be used: {}", selected_model.unwrap_or("default"));
 
-    // TODO: Pass user_context and selected_model to analyze_lines when core library supports it
-    // For now, use the existing function
-    analyze_lines(filtered_logs, level, provider, api_key).await.map_err(|e| {
+    // Pass selected_model to analyze_lines
+    analyze_lines(filtered_logs, level, provider, api_key, selected_model).await.map_err(|e| {
         tracing::error!("❌ AI analysis failed: {}", e);
         tracing::error!("❌ Error details: {:#}", e);
         e

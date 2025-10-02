@@ -19,7 +19,7 @@ pub async fn get_dashboard_stats(
     let total_projects = sqlx::query!("SELECT COUNT(*) as count FROM projects")
         .fetch_one(state.db.pool())
         .await
-        .map_err(|e| {
+        .map_err(|e: sqlx::Error| {
             tracing::error!("Failed to count projects: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?
@@ -33,7 +33,7 @@ pub async fn get_dashboard_stats(
     )
     .fetch_one(state.db.pool())
     .await
-    .map_err(|e| {
+    .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to count weekly analyses: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?
@@ -57,7 +57,7 @@ pub async fn get_dashboard_stats(
     )
     .fetch_one(state.db.pool())
     .await
-    .map_err(|e| {
+    .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to calculate average processing time: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?
@@ -71,7 +71,7 @@ pub async fn get_dashboard_stats(
     )
     .fetch_one(state.db.pool())
     .await
-    .map_err(|e| {
+    .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to count critical errors: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?

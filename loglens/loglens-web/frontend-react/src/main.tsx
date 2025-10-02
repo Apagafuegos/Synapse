@@ -8,8 +8,12 @@ import App from './App';
 import ErrorFallback from '@components/ErrorFallback';
 import { ThemeProvider } from '@hooks/useTheme';
 import { WebSocketProvider } from '@hooks/useWebSocket';
+import { logger, logErrorBoundary } from './utils/logger';
 
 import './styles/index.css';
+
+// Initialize logging
+logger.info('App', 'LogLens frontend starting up');
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,7 +29,13 @@ const queryClient = new QueryClient({
 
 function Root() {
   return (
-    <ErrorBoundary FallbackComponent={ErrorFallback} onError={console.error}>
+    <ErrorBoundary 
+      FallbackComponent={ErrorFallback} 
+      onError={(error, errorInfo) => {
+        logErrorBoundary(error, errorInfo);
+        console.error('React Error Boundary:', error, errorInfo);
+      }}
+    >
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <ThemeProvider>
@@ -38,6 +48,8 @@ function Root() {
     </ErrorBoundary>
   );
 }
+
+logger.debug('App', 'Rendering React application');
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

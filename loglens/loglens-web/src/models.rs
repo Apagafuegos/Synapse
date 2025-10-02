@@ -23,7 +23,7 @@ pub struct LogFile {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Analysis {
     pub id: String,
     pub project_id: String,

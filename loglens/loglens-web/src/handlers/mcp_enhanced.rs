@@ -136,7 +136,7 @@ pub async fn generate_mcp_ticket(
     )
     .execute(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(response))
 }

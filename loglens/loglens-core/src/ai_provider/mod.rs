@@ -2,6 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use std::collections::HashMap;
+use tracing::{info, error, warn, debug};
 use crate::context_manager::AIAnalysisPayload;
 use crate::classification::ErrorCategory;
 
@@ -137,11 +138,27 @@ pub trait AIProvider: Send + Sync {
 }
 
 pub fn create_provider(provider_name: &str, api_key: &str) -> Result<Box<dyn AIProvider>> {
+    info!("Creating AI provider: {}", provider_name);
     match provider_name.to_lowercase().as_str() {
-        "openrouter" => Ok(Box::new(OpenRouterProvider::new(api_key.to_string()))),
-        "openai" => Ok(Box::new(OpenAIProvider::new(api_key.to_string()))),
-        "claude" | "anthropic" => Ok(Box::new(ClaudeProvider::new(api_key.to_string()))),
-        "gemini" => Ok(Box::new(GeminiProvider::new(api_key.to_string()))),
-        _ => Err(AIError::UnsupportedProvider(provider_name.to_string()).into()),
+        "openrouter" => {
+            debug!("Initializing OpenRouter provider");
+            Ok(Box::new(OpenRouterProvider::new(api_key.to_string())))
+        }
+        "openai" => {
+            debug!("Initializing OpenAI provider");
+            Ok(Box::new(OpenAIProvider::new(api_key.to_string())))
+        }
+        "claude" | "anthropic" => {
+            debug!("Initializing Claude/Anthropic provider");
+            Ok(Box::new(ClaudeProvider::new(api_key.to_string())))
+        }
+        "gemini" => {
+            debug!("Initializing Gemini provider");
+            Ok(Box::new(GeminiProvider::new(api_key.to_string())))
+        }
+        _ => {
+            error!("Unsupported AI provider: {}", provider_name);
+            Err(AIError::UnsupportedProvider(provider_name.to_string()).into())
+        }
     }
 }

@@ -6,6 +6,7 @@ use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use tracing::{info, error, warn, debug};
 
 #[allow(dead_code)]
 #[derive(Debug, Serialize)]
@@ -200,6 +201,9 @@ struct OpenRouterPricing {
 #[async_trait::async_trait]
 impl AIProvider for OpenRouterProvider {
     async fn analyze(&self, request: AnalysisRequest) -> Result<AnalysisResponse, AIError> {
+        info!("Starting OpenRouter analysis with model: {}", self.model);
+        debug!("Analysis focus: {:?}", request.analysis_focus);
+        
         use crate::ai_provider::prompts::SystemPromptGenerator;
 
         // Generate system prompt based on analysis focus
@@ -208,9 +212,11 @@ impl AIProvider for OpenRouterProvider {
             request.user_context.as_deref(),
             &request.analysis_focus,
         );
+        debug!("Generated system prompt ({} chars)", system_prompt.len());
 
         // Generate user prompt with log analysis
         let user_prompt = SystemPromptGenerator::create_analysis_prompt(&request.payload);
+        debug!("Generated user prompt ({} chars)", user_prompt.len());
 
         let messages = vec![
             OpenRouterMessage {
@@ -233,6 +239,7 @@ impl AIProvider for OpenRouterProvider {
             }),
         };
 
+        debug!("Sending OpenRouter request");
         let response = self
             .client
             .post("https://openrouter.ai/api/v1/chat/completions")
@@ -242,13 +249,21 @@ impl AIProvider for OpenRouterProvider {
             .header("Content-Type", "application/json")
             .json(&openrouter_request)
             .send()
-            .await?;
+            .await
+            .map_err(|e| {
+                error!("Failed to send OpenRouter request: {}", e);
+                AIError::RequestError(e)
+            })?;
 
+        debug!("OpenRouter response status: {}", response.status());
+        
         if response.status() == 401 {
+            error!("OpenRouter authentication failed");
             return Err(AIError::AuthenticationError);
         }
 
         if response.status() == 429 {
+            warn!("OpenRouter rate limit exceeded");
             return Err(AIError::RateLimited);
         }
 
@@ -258,18 +273,24 @@ impl AIProvider for OpenRouterProvider {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
+            error!("OpenRouter API error: {} - {}", status, error_text);
             return Err(AIError::InvalidResponse(format!(
                 "HTTP {}: {}",
                 status, error_text
             )));
         }
 
+        debug!("Parsing OpenRouter response");
         let openrouter_response: OpenRouterResponse = response
             .json()
             .await
-            .map_err(|e| AIError::InvalidResponse(format!("Failed to parse response: {}", e)))?;
+            .map_err(|e| {
+                error!("Failed to parse OpenRouter response: {}", e);
+                AIError::InvalidResponse(format!("Failed to parse response: {}", e))
+            })?;
 
         if openrouter_response.choices.is_empty() {
+            error!("No choices in OpenRouter response");
             return Err(AIError::InvalidResponse(
                 "No choices in response".to_string(),
             ));

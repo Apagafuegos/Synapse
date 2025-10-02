@@ -30,7 +30,7 @@ pub async fn handle_mcp_request(
     let _project = sqlx::query!("SELECT id FROM projects WHERE id = ?", project_id)
         .fetch_optional(state.db.pool())
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
     // Process MCP request
@@ -98,7 +98,7 @@ pub async fn list_analyses_for_mcp(
     )
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let mcp_analyses: Vec<Value> = analyses
         .into_iter()

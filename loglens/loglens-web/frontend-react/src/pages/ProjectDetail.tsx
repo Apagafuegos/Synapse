@@ -15,6 +15,7 @@ import {
 
 import { api, ApiError } from '@services/api';
 import LoadingSpinner from '@components/LoadingSpinner';
+import NotFound from '@pages/NotFound';
 import type { LogFile, Analysis } from '@/types';
 
 function ProjectDetail() {
@@ -34,20 +35,56 @@ function ProjectDetail() {
   const queryClient = useQueryClient();
   const { settings: _, isLoading: settingsLoading, getProvider, getLevel, isConfigured } = useSettings();
 
-  // Fetch project files
+  // First validate the project exists
+  const { 
+    data: project, 
+    isLoading: projectLoading, 
+    error: projectError 
+  } = useQuery(
+    ['project', id], 
+    () => id ? api.projects.getById(id) : Promise.reject('No project ID'),
+    {
+      enabled: !!id,
+      retry: false
+    }
+  );
+
+  // Only fetch project files if project exists
   const { 
     data: files, 
     isLoading: filesLoading, 
     error: filesError,
     refetch: refetchFiles 
-  } = useQuery(['project-files', id], () => id ? api.files.getByProject(id) : Promise.resolve([]));
+  } = useQuery(
+    ['project-files', id], 
+    () => id ? api.files.getByProject(id) : Promise.resolve([]),
+    {
+      enabled: !!id && !!project
+    }
+  );
 
-  // Fetch project analyses
+  // Only fetch project analyses if project exists
   const { 
     data: analyses, 
     isLoading: analysesLoading, 
     error: analysesError 
-  } = useQuery(['project-analyses', id], () => id ? api.analysis.getByProject(id) : Promise.resolve({ analyses: [], pagination: { page: 1, per_page: 20, total: 0 } }));
+  } = useQuery(
+    ['project-analyses', id], 
+    () => id ? api.analysis.getByProject(id) : Promise.resolve({ analyses: [], pagination: { page: 1, per_page: 20, total: 0 } }),
+    {
+      enabled: !!id && !!project,
+      // Add refetch interval when there are running analyses
+      refetchInterval: (data) => {
+        const hasRunningAnalysis = data?.analyses?.some(analysis => 
+          analysis.status === 'running' || analysis.status === 'pending'
+        );
+        if (hasRunningAnalysis) {
+          return 3000; // Poll every 3 seconds when there are running analyses
+        }
+        return false;
+      },
+    }
+  );
 
   // Upload file mutation
   const uploadFileMutation = useMutation(
@@ -66,7 +103,7 @@ function ProjectDetail() {
 
   // Create analysis mutation
   const createAnalysisMutation = useMutation(
-    (fileId: string, options?: { userContext?: string; selectedModel?: string; timeoutSeconds?: number }) => id ? api.analysis.create(id, fileId, {
+    ({ fileId, options }: { fileId: string; options?: { userContext?: string; selectedModel?: string; timeoutSeconds?: number } }) => id ? api.analysis.create(id, fileId, {
       provider: getProvider(),
       level: getLevel(),
       user_context: options?.userContext,
@@ -135,7 +172,7 @@ function ProjectDetail() {
     setAnalyzingFiles(prev => new Set(prev).add(fileId));
     setAnalysisError(null);
     try {
-      await createAnalysisMutation.mutateAsync(fileId, options);
+      await createAnalysisMutation.mutateAsync({ fileId, options });
     } catch (err) {
       // Error is handled by mutation onError
     } finally {
@@ -194,6 +231,20 @@ function ProjectDetail() {
   const handleViewAnalysis = (analysisId: string) => {
     navigate(`/analysis/${analysisId}`);
   };
+
+  // Handle project loading state
+  if (projectLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  // Handle project not found or error
+  if (projectError || !project) {
+    return <NotFound />;
+  }
 
   if (filesLoading || analysesLoading) {
     return (

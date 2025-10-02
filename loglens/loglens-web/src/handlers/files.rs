@@ -19,7 +19,7 @@ async fn process_file_upload(
     file_path: PathBuf,
 ) -> Result<LogFile, StatusCode> {
     // Start a transaction to ensure atomicity
-    let mut tx = state.db.pool().begin().await.map_err(|e| {
+    let mut tx = state.db.pool().begin().await.map_err(|e: sqlx::Error| {
         tracing::error!("Failed to start transaction for file upload: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -90,7 +90,7 @@ pub async fn upload_log_file(
     mut multipart: Multipart,
 ) -> Result<Json<LogFile>, StatusCode> {
     // Validate project ID format
-    Validator::validate_uuid(&project_id).map_err(|e| {
+    Validator::validate_uuid(&project_id).map_err(|e: crate::validation::ValidationError| {
         tracing::warn!("Invalid project ID: {}", e.to_message());
         StatusCode::BAD_REQUEST
     })?;
@@ -99,7 +99,7 @@ pub async fn upload_log_file(
     let _project = sqlx::query!("SELECT id FROM projects WHERE id = ?", project_id)
         .fetch_optional(state.db.pool())
         .await
-        .map_err(|e| {
+        .map_err(|e: sqlx::Error| {
             tracing::error!("Failed to verify project {}: {}", project_id, e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?
@@ -109,7 +109,7 @@ pub async fn upload_log_file(
     let upload_dir = PathBuf::from("uploads").join(&project_id);
     fs::create_dir_all(&upload_dir)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_: std::io::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let mut uploaded_file: Option<LogFile> = None;
 
@@ -128,7 +128,7 @@ pub async fn upload_log_file(
 
             tracing::info!("Processing uploaded file: '{}'", filename);
 
-            let data = field.bytes().await.map_err(|e| {
+            let data = field.bytes().await.map_err(|e: axum::extract::multipart::MultipartError| {
                 tracing::error!("Failed to read file bytes: {}", e);
                 StatusCode::BAD_REQUEST
             })?;
@@ -147,7 +147,7 @@ pub async fn upload_log_file(
                 data.len(),
                 state.config.max_upload_size,
             )
-            .map_err(|e| {
+            .map_err(|e: crate::validation::ValidationError| {
                 tracing::error!("File upload validation failed for '{}': {}", filename, e.to_message());
                 e.to_status_code()
             })?;
@@ -190,7 +190,7 @@ pub async fn list_log_files(
     .bind(&project_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(log_files))
 }
@@ -208,7 +208,7 @@ pub async fn delete_log_file(
     .bind(&project_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|e| {
+    .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to fetch log file {}: {}", file_id, e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?
@@ -221,7 +221,7 @@ pub async fn delete_log_file(
     )
     .fetch_one(state.db.pool())
     .await
-    .map_err(|e| {
+    .map_err(|e: sqlx::Error| {
         tracing::error!(
             "Failed to check active analyses for file {}: {}",
             file_id,
@@ -246,7 +246,7 @@ pub async fn delete_log_file(
     )
     .fetch_one(state.db.pool())
     .await
-    .map_err(|e| {
+    .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to check all analyses for file {}: {}", file_id, e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -260,7 +260,7 @@ pub async fn delete_log_file(
     }
 
     // Start a transaction to ensure atomicity
-    let mut tx = state.db.pool().begin().await.map_err(|e| {
+    let mut tx = state.db.pool().begin().await.map_err(|e: sqlx::Error| {
         tracing::error!("Failed to start transaction for file deletion: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -269,7 +269,7 @@ pub async fn delete_log_file(
     let result = sqlx::query!("DELETE FROM log_files WHERE id = ?", file_id)
         .execute(&mut *tx)
         .await
-        .map_err(|e| {
+        .map_err(|e: sqlx::Error| {
             tracing::error!("Failed to delete log file {} from database: {}", file_id, e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
@@ -280,7 +280,7 @@ pub async fn delete_log_file(
     }
 
     // Commit the transaction
-    tx.commit().await.map_err(|e| {
+    tx.commit().await.map_err(|e: sqlx::Error| {
         tracing::error!("Failed to commit file deletion transaction: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;

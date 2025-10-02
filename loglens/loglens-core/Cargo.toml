@@ -24,6 +24,7 @@ dirs.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 encoding_rs.workspace = true
+tracing.workspace = true
 
 # Optional dependencies based on features
 tokio = { workspace = true, optional = true }

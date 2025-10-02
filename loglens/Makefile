@@ -50,3 +50,20 @@ setup: build-wasm install-frontend
 	@echo "Development setup complete!"
 	@echo "Run 'make dev' to start the backend server"
 	@echo "Run 'make dev-frontend' in another terminal to start the frontend"
+
+# Production build - builds everything for production deployment
+build-prod: build-wasm build-frontend build-backend
+	@echo "✓ Production build complete!"
+	@echo "Run 'make start-prod' or './start.sh --build' to start the server"
+
+# Start production server (after build-prod)
+start-prod:
+	@echo "Starting LogLens in production mode..."
+	@mkdir -p data uploads
+	@export PORT=3000 DATABASE_URL=sqlite:./data/loglens.db && ./target/release/loglens-web
+
+# Unified start - builds and runs everything (recommended for production)
+start: build-wasm build-frontend
+	@echo "Starting LogLens (development build)..."
+	@mkdir -p data uploads
+	@export PORT=3000 DATABASE_URL=sqlite:./data/loglens.db && cargo run --bin loglens-web

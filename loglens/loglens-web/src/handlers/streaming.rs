@@ -177,7 +177,7 @@ pub async fn ingest_logs(
         state.streaming_hub
             .add_logs(project_id, "http-ingest", entries)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|_: anyhow::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
 
     Ok(StatusCode::ACCEPTED)
@@ -191,7 +191,7 @@ pub async fn flush_project_buffers(
     state.streaming_hub
         .flush_project_buffers(project_id)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_: anyhow::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::NO_CONTENT)
 }

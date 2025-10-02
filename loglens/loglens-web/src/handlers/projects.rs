@@ -15,7 +15,7 @@ pub async fn list_projects(
     )
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(projects))
 }
@@ -27,7 +27,7 @@ pub async fn create_project(
     // Validate and sanitize input
     let (sanitized_name, sanitized_description) = 
         Validator::validate_project_request(&req.name, req.description.as_ref())
-            .map_err(|e| {
+            .map_err(|e: crate::validation::ValidationError| {
                 tracing::warn!("Project creation validation failed: {}", e.to_message());
                 e.to_status_code()
             })?;
@@ -44,7 +44,7 @@ pub async fn create_project(
     )
     .execute(state.db.pool())
     .await
-    .map_err(|e| {
+    .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to create project: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -59,7 +59,7 @@ pub async fn get_project(
 ) -> Result<Json<Project>, StatusCode> {
     // Validate UUID format
     Validator::validate_uuid(&project_id)
-        .map_err(|e| {
+        .map_err(|e: crate::validation::ValidationError| {
             tracing::warn!("Invalid project ID format: {}", e.to_message());
             StatusCode::BAD_REQUEST
         })?;
@@ -70,7 +70,7 @@ pub async fn get_project(
     .bind(&project_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|e| {
+    .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to fetch project {}: {}", project_id, e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?
@@ -85,7 +85,7 @@ pub async fn delete_project(
 ) -> Result<Json<Value>, StatusCode> {
     // Validate UUID format
     Validator::validate_uuid(&project_id)
-        .map_err(|e| {
+        .map_err(|e: crate::validation::ValidationError| {
             tracing::warn!("Invalid project ID format: {}", e.to_message());
             StatusCode::BAD_REQUEST
         })?;
@@ -97,7 +97,7 @@ pub async fn delete_project(
     )
     .fetch_one(state.db.pool())
     .await
-    .map_err(|e| {
+    .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to check analyses for project {}: {}", project_id, e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -110,7 +110,7 @@ pub async fn delete_project(
     let result = sqlx::query!("DELETE FROM projects WHERE id = ?", project_id)
         .execute(state.db.pool())
         .await
-        .map_err(|e| {
+        .map_err(|e: sqlx::Error| {
             tracing::error!("Failed to delete project {}: {}", project_id, e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;

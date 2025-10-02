@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  loglens:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: loglens:latest
+    container_name: loglens
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist database
+      - ./data:/app/data
+      # Persist uploaded files
+      - ./uploads:/app/uploads
+    environment:
+      # Database configuration
+      - LOGLENS_DATABASE_URL=sqlite:/app/data/loglens.db
+
+      # Server configuration
+      - PORT=3000
+      - WORKERS=4
+
+      # AI Provider API Keys (optional - add your keys)
+      # - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # - GEMINI_API_KEY=${GEMINI_API_KEY}
+
+      # Cache configuration
+      - CACHE_ENABLED=true
+      - CACHE_TTL=3600
+      - CACHE_MAX_ENTRIES=1000
+
+      # Performance settings
+      - MAX_FILE_SIZE=52428800
+      - MAX_ANALYSIS_LINES=50000
+
+      # Logging
+      - RUST_LOG=info
+
+      # Frontend path configuration
+      - LOGLENS_FRONTEND_DIR=/app/frontend-react/dist
+      - LOGLENS_UPLOAD_DIR=/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# Create named volumes for persistence
+volumes:
+  data:
+    driver: local
+  uploads:
+    driver: local

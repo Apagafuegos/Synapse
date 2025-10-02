@@ -119,7 +119,7 @@ pub async fn analyze_correlations(
         .bind(&project_id)
         .fetch_optional(state.db.pool())
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?
         {
             analyses.push(analysis);
         }
@@ -180,7 +180,7 @@ pub async fn detect_anomalies(
     .bind(&project_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?
     .ok_or(StatusCode::NOT_FOUND)?;
 
     // Get historical analyses for comparison
@@ -195,7 +195,7 @@ pub async fn detect_anomalies(
     .bind(lookback_hours)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Detect anomalies
     let anomalies = detect_anomalies_in_analysis(&analysis, &historical_analyses, sensitivity);
@@ -244,7 +244,7 @@ pub async fn analyze_multiple_logs(
         .bind(&req.level_filter)
         .fetch_all(state.db.pool())
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
         if let Some(latest_analysis) = analyses.first() {
             // Extract errors from analysis result
@@ -268,7 +268,7 @@ pub async fn analyze_multiple_logs(
             .bind(&latest_analysis.id)
             .fetch_all(state.db.pool())
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
             file_analyses.insert(
                 file_id.clone(),

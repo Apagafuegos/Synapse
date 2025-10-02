@@ -1,2 +1,8 @@
 /target
 /.serena/
+/.cargo/
+loglens-web/frontend-react/dist/
+.env
+*.db
+*.db-shm
+*.db-wal

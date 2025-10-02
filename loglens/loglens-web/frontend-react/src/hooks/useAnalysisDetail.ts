@@ -26,7 +26,20 @@ export const useAnalysisDetail = ({ id, enabled = true }: UseAnalysisDetailOptio
     },
     onSuccess: (data) => {
       console.log('Successfully fetched analysis:', data);
-    }
+    },
+    // Add refetch interval for running analyses
+    refetchInterval: (data) => {
+      // If analysis is running, poll every 2 seconds
+      if (data?.status === 'running') {
+        return 2000;
+      }
+      // If analysis is pending, poll every 3 seconds
+      if (data?.status === 'pending') {
+        return 3000;
+      }
+      // Otherwise, no polling needed
+      return false;
+    },
   });
 
   return query;

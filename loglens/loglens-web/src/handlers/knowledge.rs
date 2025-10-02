@@ -104,7 +104,7 @@ pub async fn create_knowledge_entry(
     )
     .execute(state.db.pool())
     .await
-    .map_err(|e| {
+    .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to create knowledge base entry: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -179,7 +179,7 @@ pub async fn get_knowledge_entry(
     )
     .execute(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(entry))
 }
@@ -251,7 +251,7 @@ pub async fn update_pattern_frequency(
     )
     .execute(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if result.rows_affected() == 0 {
         return Err(StatusCode::NOT_FOUND);
@@ -319,7 +319,7 @@ pub async fn create_performance_metric(
     )
     .execute(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(metric))
 }

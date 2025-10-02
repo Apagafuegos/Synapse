@@ -66,7 +66,7 @@ pub async fn export_html_report(
             format!("attachment; filename=\"loglens_analysis_{}.html\"", analysis_id),
         )
         .body(html_content.into())
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
 }
 
 // JSON Export
@@ -77,7 +77,7 @@ pub async fn export_json_data(
     let analysis = get_analysis_with_related_data(state, &project_id, &analysis_id).await?;
 
     let json_data =
-        serde_json::to_string_pretty(&analysis).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        serde_json::to_string_pretty(&analysis).map_err(|_: serde_json::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Response::builder()
         .header(header::CONTENT_TYPE, "application/json")
@@ -86,7 +86,7 @@ pub async fn export_json_data(
             format!("attachment; filename=\"loglens_analysis_{}.json\"", analysis_id),
         )
         .body(json_data.into())
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
 }
 
 // CSV Export
@@ -105,7 +105,7 @@ pub async fn export_csv_data(
             format!("attachment; filename=\"loglens_analysis_{}.csv\"", analysis_id),
         )
         .body(csv_content.into())
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
 }
 
 // Markdown Export
@@ -124,7 +124,7 @@ pub async fn export_markdown_report(
             format!("attachment; filename=\"loglens_analysis_{}.md\"", analysis_id),
         )
         .body(markdown_content.into())
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
 }
 
 // PDF Export
@@ -143,7 +143,7 @@ pub async fn export_pdf_report(
                     format!("attachment; filename=\"loglens_analysis_{}.pdf\"", analysis_id),
                 )
                 .body(pdf_data.into())
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+                .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
         }
         Err(e) => {
             tracing::error!("Failed to generate PDF: {}", e);
@@ -163,7 +163,7 @@ pub async fn export_pdf_report(
             Ok(Response::builder()
                 .header(header::CONTENT_TYPE, "text/html")
                 .body(html_content.into())
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+                .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
         }
     }
 }
@@ -470,7 +470,7 @@ pub async fn create_share_link(
     .bind(&project_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?
     .ok_or(StatusCode::NOT_FOUND)?;
 
     let share_id = uuid::Uuid::new_v4().to_string();
@@ -507,7 +507,7 @@ pub async fn create_share_link(
     .bind(chrono::Utc::now())
     .execute(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let response = ShareResponse {
         share_id: share_id.clone(),
@@ -533,12 +533,12 @@ pub async fn get_shared_analysis(
     .bind(&share_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?
     .ok_or(StatusCode::NOT_FOUND)?;
 
     // Parse share data
     let share_data: serde_json::Value = serde_json::from_str(&share_info.solution)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_: serde_json::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let analysis_id = share_data
         .get("analysis_id")
@@ -556,7 +556,7 @@ pub async fn get_shared_analysis(
     Ok(Response::builder()
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
         .body(html_content.into())
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
 }
 
 // Export history
@@ -583,7 +583,7 @@ async fn get_analysis_with_related_data(
     .bind(&project_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?
     .ok_or(StatusCode::NOT_FOUND)?;
 
     let correlations = sqlx::query_as::<_, ErrorCorrelation>(
@@ -597,7 +597,7 @@ async fn get_analysis_with_related_data(
     .bind(analysis_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let metrics = sqlx::query_as::<_, PerformanceMetric>(
         "SELECT id, analysis_id, metric_name, metric_value, unit, threshold_value, is_bottleneck, created_at
@@ -606,7 +606,7 @@ async fn get_analysis_with_related_data(
     .bind(analysis_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let analysis_json = serde_json::json!({
         "analysis": _analysis,

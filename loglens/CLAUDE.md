@@ -134,3 +134,67 @@ LogLens operates as both MCP tool consumer (via JSON I/O mode) and MCP server pr
 - **Server Mode**: Exposes log analysis capabilities to MCP clients
 - **Tool Integration**: Can be called by other MCP-aware systems
 - **Protocol Compliance**: Full handshake implementation with proper error handling
+
+## Logging Architecture
+
+LogLens uses structured logging via the `tracing` crate for comprehensive observability across all components.
+
+### Log Levels
+
+- **ERROR**: Critical failures preventing operation (auth failures, DB errors, file I/O failures, API failures)
+- **WARN**: Non-critical issues needing attention (rate limiting, missing optional config, unexpected conditions)
+- **INFO**: Important operational information (service startup/shutdown, major milestones, analysis summaries)
+- **DEBUG**: Detailed diagnostics (request/response details, processing steps, performance metrics)
+
+### Backend Logging (Rust)
+
+**Environment Configuration**:
+```bash
+RUST_LOG=info          # Standard logging
+RUST_LOG=debug         # Verbose logging for development
+RUST_LOG=loglens=debug # Module-specific debug logging
+```
+
+**Components with Enhanced Logging**:
+- **CLI Module**: Command processing, file operations, API key resolution, analysis pipeline stages
+- **Core Library**: Main API functions (`analyze_lines`, `process_mcp_request`), analyzer workflow, AI provider operations
+- **AI Providers**: Provider initialization, request/response handling, authentication errors, rate limiting
+- **Input Module**: File reading with encoding detection, command execution with status tracking
+- **Web Server**: Startup validation, database initialization, cache/circuit breaker setup, background tasks
+
+**Example Usage**:
+```rust
+error!("Failed to read file {}: {}", file_path, e);
+info!("Analysis completed in {}ms", duration);
+debug!("Processing chunk {} of {}", current, total);
+```
+
+### Frontend Logging (React)
+
+**Logger Utility** (`utils/logger.ts`):
+- Structured logging with levels (DEBUG, INFO, WARN, ERROR)
+- Component-based categorization
+- Log storage and export capabilities
+- Error boundary integration
+
+**Example Usage**:
+```typescript
+import { logger, LogLevel } from './utils/logger';
+
+// Set log level dynamically
+logger.setLogLevel(LogLevel.DEBUG);
+
+// Log with context
+logger.error('API', 'Request failed', { endpoint, status, error });
+logger.info('Component', 'User action', { action: 'submit', form: 'login' });
+```
+
+### Error Context Guidelines
+
+All error logs include:
+- What failed (operation, component, function)
+- Why it failed (error message, status code)
+- Where it failed (module, file, line context)
+- Structured error information with stack traces when available
+- Clear separation between error types
+- Consistent message formatting

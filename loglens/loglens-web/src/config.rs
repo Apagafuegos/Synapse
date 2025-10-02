@@ -9,17 +9,25 @@ pub struct WebConfig {
     pub max_projects: usize,
     pub analysis_timeout_secs: u64,
     pub cors_origins: Vec<String>,
+    pub frontend_dir: String,
+    pub upload_dir: String,
 }
 
 impl Default for WebConfig {
     fn default() -> Self {
+        // Use absolute path for database to avoid issues with working directory
+        let project_root = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+        let db_path = format!("{}/data/loglens.db", project_root);
+        
         Self {
-            port: 3001,
-            database_url: "sqlite://./loglens.db".to_string(),
+            port: 3000,
+            database_url: format!("sqlite://{}", db_path),
             max_upload_size: 50 * 1024 * 1024, // 50MB
             max_projects: 100,
             analysis_timeout_secs: 300, // 5 minutes
             cors_origins: vec!["http://localhost:3000".to_string()],
+            frontend_dir: "loglens-web/frontend-react/dist".to_string(),
+            upload_dir: "./uploads".to_string(),
         }
     }
 }
@@ -33,7 +41,10 @@ impl WebConfig {
             config.port = port.parse()?;
         }
 
+        // Try LOGLENS_DATABASE_URL first, then DATABASE_URL for backward compatibility
         if let Ok(db_url) = env::var("LOGLENS_DATABASE_URL") {
+            config.database_url = db_url;
+        } else if let Ok(db_url) = env::var("DATABASE_URL") {
             config.database_url = db_url;
         }
 
@@ -51,6 +62,14 @@ impl WebConfig {
 
         if let Ok(origins) = env::var("LOGLENS_CORS_ORIGINS") {
             config.cors_origins = origins.split(',').map(|s| s.trim().to_string()).collect();
+        }
+
+        if let Ok(frontend_dir) = env::var("LOGLENS_FRONTEND_DIR") {
+            config.frontend_dir = frontend_dir;
+        }
+
+        if let Ok(upload_dir) = env::var("LOGLENS_UPLOAD_DIR") {
+            config.upload_dir = upload_dir;
         }
 
         Ok(config)

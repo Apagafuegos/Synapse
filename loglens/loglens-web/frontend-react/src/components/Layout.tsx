@@ -45,7 +45,7 @@ function Layout({ children }: LayoutProps) {
     setTheme(nextTheme);
   };
 
-  const ThemeIcon = themeIcons[theme];
+  const ThemeIcon = themeIcons[theme] || SunIcon;
 
   return (
     <div className="min-h-screen flex bg-gray-50 dark:bg-gray-900">

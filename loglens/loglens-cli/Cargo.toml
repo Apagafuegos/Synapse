@@ -7,13 +7,11 @@ edition = "2021"
 name = "loglens"
 path = "src/main.rs"
 
-[[bin]]
-name = "debug_encoding"
-path = "src/debug_encoding.rs"
-
 [dependencies]
 loglens-core = { path = "../loglens-core" }
 clap = { workspace = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 serde_json = { workspace = true }
+tracing.workspace = true
+tracing-subscriber.workspace = true

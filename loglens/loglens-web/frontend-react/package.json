@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "npm run build:wasm && tsc && vite build",
     "build:wasm": "cd ../../loglens-wasm && wasm-pack build --target web --out-dir pkg",
+    "build:skip-wasm": "tsc && vite build",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint src --ext ts,tsx --fix",
     "preview": "vite preview",

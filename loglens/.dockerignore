@@ -1,0 +1,62 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+target/
+loglens-wasm/pkg/
+loglens-web/frontend-react/dist/
+loglens-web/frontend-react/node_modules/
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test and development
+*.log
+*.db
+*.db-shm
+*.db-wal
+loglens-web/loglens.db*
+
+# Data directories
+data/
+uploads/
+loglens-web/uploads/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Documentation
+*.md
+!CLAUDE.md
+docs/
+.crush/
+.claude/
+
+# CI/CD
+.github/
+
+# Package manager
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Rust
+**/*.rs.bk
+
+# Temporary files
+tmp/
+temp/
+*.tmp

@@ -3,6 +3,7 @@ use serde::{Serialize, Deserialize};
 use schemars::JsonSchema;
 use std::fs;
 use tokio::process::Command;
+use tracing::{info, error, warn, debug};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct LogEntry {
@@ -13,24 +14,37 @@ pub struct LogEntry {
 }
 
 pub async fn read_log_file(file_path: &str) -> Result<Vec<String>> {
-    use encoding_rs::{UTF_8, UTF_16LE, UTF_16BE, WINDOWS_1252, ISO_8859_2, ISO_8859_3};
+    info!("Reading log file: {}", file_path);
     
     // Read file as bytes first
-    let data = fs::read(file_path)?;
+    let data = match fs::read(file_path) {
+        Ok(data) => {
+            debug!("Read {} bytes from file {}", data.len(), file_path);
+            data
+        }
+        Err(e) => {
+            error!("Failed to read file {}: {}", file_path, e);
+            return Err(e.into());
+        }
+    };
     
     // Detect encoding and create decoder
     let (encoding, _confidence, decoder) = detect_and_create_decoder(&data);
-    eprintln!("Detected encoding {} for file {}", encoding.name(), file_path);
+    info!("Detected encoding {} for file {}", encoding.name(), file_path);
     
     // Process line by line for better error recovery
     let lines = decode_lines_robust(&data, &decoder)?;
+    debug!("Decoded {} lines from file {}", lines.len(), file_path);
     
     Ok(lines)
 }
 
 pub async fn execute_and_capture(command: &str) -> Result<Vec<String>> {
+    info!("Executing command: {}", command);
+    
     let parts: Vec<&str> = command.split_whitespace().collect();
     if parts.is_empty() {
+        error!("Empty command provided");
         return Err(anyhow::anyhow!("Empty command"));
     }
 
@@ -39,13 +53,23 @@ pub async fn execute_and_capture(command: &str) -> Result<Vec<String>> {
         cmd.args(&parts[1..]);
     }
 
-    let output = cmd.output().await?;
+    let output = match cmd.output().await {
+        Ok(output) => output,
+        Err(e) => {
+            error!("Failed to execute command '{}': {}", command, e);
+            return Err(e.into());
+        }
+    };
 
+    debug!("Command completed with status: {}", output.status);
+    
     let mut lines = Vec::new();
 
     // Add stdout lines
     let stdout = String::from_utf8_lossy(&output.stdout);
-    lines.extend(stdout.lines().map(|s| s.to_string()));
+    let stdout_lines: Vec<String> = stdout.lines().map(|s| s.to_string()).collect();
+    debug!("Captured {} stdout lines", stdout_lines.len());
+    lines.extend(stdout_lines);
 
     // Add stderr lines
     let stderr = String::from_utf8_lossy(&output.stderr);

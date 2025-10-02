@@ -1,6 +1,7 @@
 use axum::{extract::DefaultBodyLimit, http::StatusCode, response::Json, routing::get, Router};
 use performance::{create_performance_indexes, OptimizedDbOps};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower::ServiceBuilder;
@@ -31,28 +32,66 @@ use streaming::StreamingHub;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
+    // Load .env file if it exists
+    dotenv::dotenv().ok();
+
+    // Initialize tracing with environment filter
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
+    
+    tracing::info!("Starting LogLens web server");
 
     // Load configuration
-    let config = WebConfig::load()?;
+    tracing::debug!("Loading web configuration");
+    let config = match WebConfig::load() {
+        Ok(config) => {
+            tracing::info!("Configuration loaded successfully, port: {}", config.port);
+            config
+        }
+        Err(e) => {
+            tracing::error!("Failed to load configuration: {}", e);
+            return Err(e);
+        }
+    };
 
     // Initialize database
-    let db = Database::new(&config.database_url).await?;
-    db.migrate().await?;
+    tracing::info!("Initializing database with URL: {}", config.database_url);
+    let db = match Database::new(&config.database_url).await {
+        Ok(db) => {
+            tracing::info!("Database initialized successfully");
+            db
+        }
+        Err(e) => {
+            tracing::error!("Failed to initialize database: {}", e);
+            return Err(e);
+        }
+    };
+    
+    if let Err(e) = db.migrate().await {
+        tracing::error!("Failed to migrate database: {}", e);
+        return Err(e.into());
+    } else {
+        tracing::info!("Database migrations completed");
+    }
 
     // Create performance indexes
     if let Err(e) = create_performance_indexes(&db.pool()).await {
         tracing::warn!("Failed to create performance indexes: {}", e);
+    } else {
+        tracing::info!("Performance indexes created successfully");
     }
 
     // Initialize cache manager
+    tracing::debug!("Initializing cache manager");
     let cache_manager = Arc::new(CacheManager::new());
 
     // Initialize circuit breaker registry
+    tracing::debug!("Initializing circuit breaker registry");
     let circuit_breakers = Arc::new(CircuitBreakerRegistry::new());
 
     // Start background task to process pending analyses
+    tracing::debug!("Starting background analysis processing task");
     let db_pool = db.pool().clone();
     let circuit_breakers_clone = circuit_breakers.clone();
     let config_clone = config.clone();
@@ -61,15 +100,18 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Initialize streaming hub for real-time log streaming
+    tracing::debug!("Initializing streaming hub");
     let streaming_hub = Arc::new(StreamingHub::new());
 
     // Initialize optimized database operations
+    tracing::debug!("Initializing optimized database operations");
     let optimized_db = Arc::new(OptimizedDbOps::new(
         db.pool().clone(),
         Arc::clone(&cache_manager),
     ));
 
     // Build application router
+    tracing::debug!("Building application router");
     let app = create_app(
         db,
         cache_manager,
@@ -82,6 +124,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Start server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
+    tracing::info!("Starting LogLens web server on http://{}", addr);
     println!("🚀 LogLens web server starting on http://{}", addr);
     tracing::info!(
         "Server configuration: workers={}, max_upload={}",
@@ -103,11 +146,21 @@ pub async fn create_app(
     optimized_db: Arc<OptimizedDbOps>,
     config: WebConfig,
 ) -> Router {
+    // Determine frontend directory path
+    let frontend_path = PathBuf::from(&config.frontend_dir);
+    let index_path = frontend_path.join("index.html");
+
+    tracing::info!("Serving frontend from: {}", frontend_path.display());
+
     Router::new()
         .route("/health", get(enhanced_health_check))
         .nest("/api", routes::api_routes())
         .route("/ws", get(status_ws_handler))
-        .nest_service("/", ServeDir::new("frontend/dist").fallback(ServeDir::new("frontend/dist/index.html")))
+        .nest_service(
+            "/",
+            ServeDir::new(&frontend_path)
+                .not_found_service(ServeDir::new(&index_path))
+        )
         .fallback(handle_404)
         .layer(
             ServiceBuilder::new()

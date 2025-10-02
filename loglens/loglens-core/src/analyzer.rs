@@ -13,6 +13,7 @@ use crate::input::LogEntry;
 use crate::slimmer::{slim_logs_with_mode, SlimmingMode};
 use anyhow::Result;
 use std::collections::HashMap;
+use tracing::{info, error, warn, debug};
 use patterns::PatternAnalyzer;
 use performance::PerformanceAnalyzer;
 use anomaly::AnomalyDetector;
@@ -189,11 +190,15 @@ impl Analyzer {
 
     /// Enhanced analysis with adaptive processing strategy
     pub async fn analyze_logs_enhanced(&mut self, entries: Vec<LogEntry>, user_context: Option<String>, progress_callback: Option<Box<dyn Fn(AnalysisProgress) + Send + Sync>>) -> Result<AnalysisResponse> {
+        info!("Starting enhanced analysis of {} log entries", entries.len());
+        
         if entries.is_empty() {
+            warn!("No log entries provided for analysis");
             return Ok(self.create_empty_response());
         }
 
         if self.config.progress_feedback {
+            debug!("Initializing progress feedback");
             if let Some(ref callback) = progress_callback {
                 callback(AnalysisProgress {
                     current_chunk: 0,
@@ -206,15 +211,19 @@ impl Analyzer {
         }
 
         let strategy = self.determine_processing_strategy(&entries);
+        info!("Selected processing strategy: {:?}", strategy);
 
         match strategy {
             ProcessingStrategy::Single => {
+                info!("Using single chunk processing strategy");
                 self.analyze_single_chunk(entries, user_context, progress_callback).await
             }
             ProcessingStrategy::AggressiveSlimming => {
+                info!("Using aggressive slimming strategy");
                 self.analyze_with_aggressive_slimming(entries, user_context, progress_callback).await
             }
             ProcessingStrategy::Chunked => {
+                info!("Using chunked processing strategy");
                 self.analyze_chunked(entries, user_context, progress_callback).await
             }
         }

@@ -3,6 +3,8 @@
 // This library provides the core functionality for log analysis that can be
 // used both by the CLI binary and MCP integrations.
 
+use tracing::{info, error, debug};
+
 pub mod ai_provider;
 pub mod analyzer;
 pub mod classification;
@@ -16,7 +18,7 @@ pub mod output;
 pub mod parser;
 pub mod slimmer;
 
-pub use ai_provider::{create_provider, AIProvider, AnalysisRequest, AnalysisResponse, AIError, AnalysisFocus, RootCauseAnalysis};
+pub use ai_provider::{create_provider, AIProvider, AnalysisRequest, AnalysisResponse, AIError, AnalysisFocus, RootCauseAnalysis, OpenRouterProvider, OpenAIProvider, ClaudeProvider, GeminiProvider};
 pub use analyzer::{Analyzer, AnalysisConfig, AnalysisProgress};
 pub use classification::{ErrorClassifier, ErrorClassification, ErrorCategory, Severity};
 pub use context_manager::{ContextManager, RelevanceScorer, AIAnalysisPayload, ContextStats};
@@ -36,17 +38,73 @@ pub async fn analyze_lines(
     level: &str,
     provider_name: &str,
     api_key: Option<&str>,
+    selected_model: Option<&str>,
 ) -> Result<AnalysisResponse> {
-    let loglens = LogLens::new()?;
-    loglens.analyze_lines(raw_lines, level, provider_name, api_key).await
+    info!("Starting analysis of {} log lines with provider: {}", raw_lines.len(), provider_name);
+    if let Some(model) = selected_model {
+        info!("Using selected model: {}", model);
+    }
+    let loglens = match LogLens::new() {
+        Ok(loglens) => {
+            debug!("LogLens instance created successfully");
+            loglens
+        }
+        Err(e) => {
+            error!("Failed to create LogLens instance: {}", e);
+            return Err(e);
+        }
+    };
+
+    match loglens.analyze_lines_with_model(raw_lines, level, provider_name, api_key, selected_model).await {
+        Ok(result) => {
+            info!("Analysis completed successfully");
+            Ok(result)
+        }
+        Err(e) => {
+            error!("Analysis failed: {}", e);
+            Err(e)
+        }
+    }
 }
 
 /// Process an MCP request using the default LogLens configuration
 pub async fn process_mcp_request(request_json: &str) -> Result<String> {
-    let loglens = LogLens::new()?;
-    let request: McpRequest = serde_json::from_str(request_json)?;
-    let response = loglens.process_mcp_request(request).await?;
-    Ok(serde_json::to_string(&response)?)
+    debug!("Processing MCP request");
+    let loglens = match LogLens::new() {
+        Ok(loglens) => loglens,
+        Err(e) => {
+            error!("Failed to create LogLens instance for MCP request: {}", e);
+            return Err(e);
+        }
+    };
+    
+    let request = match serde_json::from_str::<McpRequest>(request_json) {
+        Ok(request) => {
+            debug!("MCP request parsed successfully");
+            request
+        }
+        Err(e) => {
+            error!("Failed to parse MCP request JSON: {}", e);
+            return Err(e.into());
+        }
+    };
+    
+    match loglens.process_mcp_request(request).await {
+        Ok(response) => {
+            debug!("MCP request processed successfully");
+            match serde_json::to_string(&response) {
+                Ok(json) => Ok(json),
+                Err(e) => {
+                    error!("Failed to serialize MCP response: {}", e);
+                    Err(e.into())
+                }
+            }
+        }
+        Err(e) => {
+            error!("MCP request processing failed: {}", e);
+            Err(e)
+        }
+    }
 }
 
 
@@ -149,6 +207,18 @@ impl LogLens {
         provider_name: &str,
         api_key: Option<&str>,
     ) -> Result<AnalysisResponse> {
+        self.analyze_lines_with_model(raw_lines, level, provider_name, api_key, None).await
+    }
+
+    /// Analyze raw log lines with optional model selection
+    pub async fn analyze_lines_with_model(
+        &self,
+        raw_lines: Vec<String>,
+        level: &str,
+        provider_name: &str,
+        api_key: Option<&str>,
+        selected_model: Option<&str>,
+    ) -> Result<AnalysisResponse> {
         // Parse logs
         let parsed_entries = parse_log_lines(&raw_lines);
 
@@ -192,7 +262,27 @@ impl LogLens {
         };
 
         // Analyze with AI using enhanced analysis
-        let provider = create_provider(provider_name, &api_key)?;
+        let mut provider = create_provider(provider_name, &api_key)?;
+
+        // Apply selected model if provided
+        if let Some(model) = selected_model {
+            info!("Applying selected model to provider: {}", model);
+            provider = match provider_name.to_lowercase().as_str() {
+                "openrouter" => {
+                    Box::new(OpenRouterProvider::new(api_key.clone()).with_model(model.to_string()))
+                }
+                "openai" => {
+                    Box::new(OpenAIProvider::new(api_key.clone()).with_model(model.to_string()))
+                }
+                "claude" | "anthropic" => {
+                    Box::new(ClaudeProvider::new(api_key.clone()).with_model(model.to_string()))
+                }
+                "gemini" => {
+                    Box::new(GeminiProvider::new(api_key.clone()).with_model(model.to_string()))
+                }
+                _ => provider, // Use default if provider doesn't support model selection
+            };
+        }
 
         // Configure analyzer for large logs
         let analysis_config = AnalysisConfig {

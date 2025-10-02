@@ -440,13 +440,25 @@ pub async fn check_database_health(pool: &sqlx::Pool<sqlx::Sqlite>) -> ServiceHe
 
 pub async fn check_cache_health(cache_manager: &crate::cache::CacheManager) -> ServiceHealth {
     let start = std::time::Instant::now();
-    
-    // Test cache operation
+
+    // Test cache operation with a minimal test analysis
     let test_key = "health_check_test".to_string();
-    let test_value = "test".to_string();
-    
-    cache_manager.analysis_cache.put(test_key.clone(), crate::models::Analysis::default(), None);
-    
+    let test_analysis = crate::models::Analysis {
+        id: "health-test".to_string(),
+        project_id: "health-test".to_string(),
+        log_file_id: None,
+        analysis_type: "test".to_string(),
+        provider: "test".to_string(),
+        level_filter: "INFO".to_string(),
+        status: crate::models::AnalysisStatus::Pending,
+        result: None,
+        error_message: None,
+        started_at: chrono::Utc::now(),
+        completed_at: None,
+    };
+
+    cache_manager.analysis_cache.put(test_key.clone(), test_analysis, None);
+
     match cache_manager.analysis_cache.get(&test_key) {
         Some(_) => {
             cache_manager.analysis_cache.remove(&test_key);
