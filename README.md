@@ -6,7 +6,7 @@ LogLens is a powerful log analysis tool that leverages artificial intelligence t
 
 ## 🤖 AI-Driven Development
 
-LogLens represents a unique collaboration between artificial intelligence and human expertise. This project has been **fully planned, developed, and structured by AI systems**, with significant contributions from:
+LogLens is collaboration between artificial intelligence and human expertise. This project has been **fully planned, developed, and structured by AI systems**, with significant contributions from:
 
 - **Claude Sonnet**: Responsible for core architecture design, Rust implementation, and major feature development
 - **GLM-4.5**: Contributed to advanced AI integration, optimization strategies, and technical documentation
