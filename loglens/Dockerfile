@@ -36,13 +36,12 @@ WORKDIR /build/loglens-web/frontend-react
 # Install dependencies
 RUN npm ci
 
-# Copy config files needed for build
-COPY loglens-web/frontend-react/tsconfig.json \
-     loglens-web/frontend-react/tsconfig.node.json \
-     loglens-web/frontend-react/vite.config.ts \
-     loglens-web/frontend-react/tailwind.config.js \
-     loglens-web/frontend-react/postcss.config.js \
-     ./
+# Copy config files needed for build (one at a time to avoid path issues)
+COPY loglens-web/frontend-react/tsconfig.json ./
+COPY loglens-web/frontend-react/tsconfig.node.json ./
+COPY loglens-web/frontend-react/vite.config.ts ./
+COPY loglens-web/frontend-react/tailwind.config.js ./
+COPY loglens-web/frontend-react/postcss.config.js ./
 
 # Copy source files and assets
 COPY loglens-web/frontend-react/index.html ./
