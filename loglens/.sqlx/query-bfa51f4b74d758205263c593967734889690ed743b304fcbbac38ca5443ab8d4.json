@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT analysis_timeout_seconds FROM settings WHERE id = 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "analysis_timeout_seconds",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "bfa51f4b74d758205263c593967734889690ed743b304fcbbac38ca5443ab8d4"
+}

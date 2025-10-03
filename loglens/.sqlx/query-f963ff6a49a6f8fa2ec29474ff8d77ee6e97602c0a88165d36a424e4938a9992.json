@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO knowledge_base (id, project_id, title, problem_description, solution, tags, severity, is_public, usage_count, created_at, updated_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "f963ff6a49a6f8fa2ec29474ff8d77ee6e97602c0a88165d36a424e4938a9992"
+}

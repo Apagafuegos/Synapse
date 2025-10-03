@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT api_key, selected_model FROM settings LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "api_key",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "selected_model",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "a37d9f3621f98831a7a8a6ac9ac23ac43db24297c23d75f9fb5a723c36e04d14"
+}

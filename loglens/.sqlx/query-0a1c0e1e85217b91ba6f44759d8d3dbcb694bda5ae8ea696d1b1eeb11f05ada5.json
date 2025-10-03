@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT AVG(\n            CAST(\n                (julianday(completed_at) - julianday(started_at)) * 24 * 60\n                as REAL\n            )\n        ) as avg_minutes\n        FROM analyses\n        WHERE status = ? AND completed_at IS NOT NULL AND started_at >= ?\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "avg_minutes",
+        "ordinal": 0,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "0a1c0e1e85217b91ba6f44759d8d3dbcb694bda5ae8ea696d1b1eeb11f05ada5"
+}

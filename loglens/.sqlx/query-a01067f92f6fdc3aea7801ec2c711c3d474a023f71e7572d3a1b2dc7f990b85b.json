@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO log_files (id, project_id, filename, file_size, line_count, upload_path, created_at)\n         VALUES (?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "a01067f92f6fdc3aea7801ec2c711c3d474a023f71e7572d3a1b2dc7f990b85b"
+}

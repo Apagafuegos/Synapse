@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE analyses SET status = ?, result = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "298d3dab52eafe46559db97ae6f0e80a1f65484df44075257c3f947a7e1b3641"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO performance_metrics (id, analysis_id, metric_name, metric_value, unit, threshold_value, is_bottleneck, created_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "6079ff528e3bce3706f5e4d9b228c2fda9b0f190576022de921b3236149eb1a8"
+}

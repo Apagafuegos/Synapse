@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT api_key FROM settings LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "api_key",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "81551be911b3615157dd24c50d01dca71384d7690eccf859ea8059d3ed77b7bb"
+}
