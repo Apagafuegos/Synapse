@@ -58,8 +58,10 @@ yarn.lock
 
 # Build outputs
 *.wasm
-*.js
 *.css.map
+# Only ignore generated JS in specific locations
+loglens-web/frontend-react/dist/**/*.js
+**/pkg/**/*.js
 
 # Documentation builds
 /docs/build/
