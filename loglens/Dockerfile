@@ -29,15 +29,24 @@ WORKDIR /build
 # Copy WASM build output
 COPY --from=wasm-builder /build/loglens-wasm/pkg ./loglens-wasm/pkg
 
-# Copy frontend source
-COPY loglens-web/frontend-react/package*.json ./loglens-web/frontend-react/
+# Copy package files for dependency installation
+COPY loglens-web/frontend-react/package.json loglens-web/frontend-react/package-lock.json ./loglens-web/frontend-react/
 WORKDIR /build/loglens-web/frontend-react
 
 # Install dependencies
 RUN npm ci
 
-# Copy frontend source files
-COPY loglens-web/frontend-react ./
+# Copy config files needed for build
+COPY loglens-web/frontend-react/tsconfig.json \
+     loglens-web/frontend-react/tsconfig.node.json \
+     loglens-web/frontend-react/vite.config.ts \
+     loglens-web/frontend-react/tailwind.config.js \
+     loglens-web/frontend-react/postcss.config.js \
+     ./
+
+# Copy source files and assets
+COPY loglens-web/frontend-react/index.html ./
+COPY loglens-web/frontend-react/src ./src
 
 # Build frontend (skip WASM rebuild since we already have it)
 RUN npm run build:skip-wasm
