@@ -14,7 +14,6 @@ COPY Cargo.toml Cargo.lock ./
 
 # Copy all workspace members (required for workspace to work)
 COPY loglens-core ./loglens-core
-COPY loglens-cli ./loglens-cli
 COPY loglens-wasm ./loglens-wasm
 COPY loglens-web ./loglens-web
 
@@ -52,7 +51,6 @@ COPY Cargo.toml Cargo.lock ./
 
 # Copy all crates
 COPY loglens-core ./loglens-core
-COPY loglens-cli ./loglens-cli
 COPY loglens-wasm ./loglens-wasm
 COPY loglens-web ./loglens-web
 

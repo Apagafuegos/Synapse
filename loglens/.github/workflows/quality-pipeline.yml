@@ -162,18 +162,7 @@ jobs:
         kill $WEB_PID
         echo "::endgroup::"
 
-    - name: "🌐 Quality Gate 5: CLI Integration Tests"
-      run: |
-        echo "::group::Testing CLI functionality"
-        # Create test log file
-        echo "2024-01-01 10:00:00 ERROR [Test] Test error message" > test_e2e.log
-
-        # Test CLI analysis (would need mock provider)
-        timeout 30s cargo run -p loglens-cli -- --file test_e2e.log --level ERROR --provider mock || echo "CLI test completed"
-
-        # Cleanup
-        rm -f test_e2e.log
-        echo "::endgroup::"
+    # CLI has been removed - tests now focus on web backend and WASM modules
 
   performance-tests:
     name: Performance & Load Testing
@@ -201,46 +190,24 @@ jobs:
     - name: Build Release Binary
       run: cargo build --workspace --release
 
-    - name: "⚡ Performance Test: Large Log Processing"
+    - name: "⚡ Performance Test: Web Server Build"
       run: |
-        echo "::group::Testing large log file processing"
-        # Create large test log file (10k lines)
-        for i in {1..10000}; do
-          echo "2024-01-01 10:$(printf "%02d" $((i/60))):$(printf "%02d" $((i%60))) ERROR [Service$((i%10))] Error message #$i" >> large_test.log
-        done
-
-        # Test processing time
-        echo "Testing large file processing..."
-        time timeout 60s cargo run -p loglens-cli --release -- --file large_test.log --level ERROR --provider mock
-
-        # Cleanup
-        rm -f large_test.log
+        echo "::group::Testing web server build performance"
+        # Test web server binary builds successfully
+        time cargo build --release -p loglens-web
+        echo "Build performance test completed"
         echo "::endgroup::"
 
-    - name: "⚡ Performance Test: Memory Usage"
+    - name: "⚡ Performance Test: WASM Build"
       run: |
-        echo "::group::Testing memory usage patterns"
-        # Monitor memory usage during processing
-        cargo run -p loglens-cli --release -- --help
-        echo "Memory usage test completed"
-        echo "::endgroup::"
+        echo "::group::Testing WASM module build"
+        # Install wasm-pack if not available
+        curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-    - name: "⚡ Performance Test: Concurrent Analysis"
-      run: |
-        echo "::group::Testing concurrent analysis capability"
-        # Create multiple test files
-        for i in {1..5}; do
-          echo "2024-01-01 10:00:0$i ERROR [Test$i] Concurrent test $i" > test_concurrent_$i.log
-        done
-
-        # Run concurrent analyses (mock provider)
-        for i in {1..5}; do
-          timeout 30s cargo run -p loglens-cli --release -- --file test_concurrent_$i.log --level ERROR --provider mock &
-        done
-        wait
-
-        # Cleanup
-        rm -f test_concurrent_*.log
+        # Build WASM module
+        cd loglens-wasm
+        time wasm-pack build --target web --out-dir pkg --release
+        echo "WASM build performance test completed"
         echo "::endgroup::"
 
   security-tests:
