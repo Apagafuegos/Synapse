@@ -42,8 +42,8 @@ simple_test.py
 test-settings.js
 test_fixes.py
 
-# SQLx query cache
-**/.sqlx/
+# SQLx query cache (removed - needed for Docker offline builds)
+# **/.sqlx/
 
 # Claude AI files
 **/.claude/
@@ -51,9 +51,9 @@ test_fixes.py
 # Uploads directory
 **/uploads/
 
-# Package manager files
-Cargo.lock
-package-lock.json
+# Package manager files (Cargo.lock and package-lock.json removed - needed for reproducible builds)
+# Cargo.lock
+# package-lock.json
 yarn.lock
 
 # Build outputs
