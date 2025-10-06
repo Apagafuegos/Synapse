@@ -26,7 +26,7 @@ impl Default for WebConfig {
             max_projects: 100,
             analysis_timeout_secs: 300, // 5 minutes
             cors_origins: vec!["http://localhost:3000".to_string()],
-            frontend_dir: "frontend-react/dist".to_string(),
+            frontend_dir: "loglens-web/frontend-react/dist".to_string(),
             upload_dir: "./uploads".to_string(),
         }
     }

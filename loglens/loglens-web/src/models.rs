@@ -142,6 +142,7 @@ impl KnowledgeBaseEntry {
         problem_description: String,
         solution: String,
         severity: String,
+        is_public: bool,
     ) -> Self {
         let now = Utc::now();
         Self {
@@ -152,7 +153,7 @@ impl KnowledgeBaseEntry {
             solution,
             tags: None,
             severity,
-            is_public: false,
+            is_public,
             usage_count: 0,
             created_at: now,
             updated_at: now,

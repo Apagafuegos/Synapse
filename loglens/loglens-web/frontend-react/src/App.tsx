@@ -11,6 +11,9 @@ const Projects = lazy(() => import('@pages/Projects'));
 const ProjectDetail = lazy(() => import('@pages/ProjectDetail'));
 const AnalysisDetail = lazy(() => import('@pages/AnalysisDetail'));
 const Settings = lazy(() => import('@pages/Settings'));
+const PatternsPage = lazy(() => import('@pages/PatternsPage'));
+const PublicKnowledgePage = lazy(() => import('@pages/PublicKnowledgePage'));
+const StreamingPage = lazy(() => import('@pages/StreamingPage'));
 const NotFound = lazy(() => import('@pages/NotFound'));
 
 function App() {
@@ -31,8 +34,11 @@ function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/projects" element={<Projects />} />
-              <Route path="/projects/:id" element={<ProjectDetail />} />
+              <Route path="/projects/:projectId" element={<ProjectDetail />} />
+              <Route path="/projects/:projectId/patterns" element={<PatternsPage />} />
+              <Route path="/projects/:projectId/streaming" element={<StreamingPage />} />
               <Route path="/analysis/:id" element={<AnalysisDetail />} />
+              <Route path="/knowledge/public" element={<PublicKnowledgePage />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

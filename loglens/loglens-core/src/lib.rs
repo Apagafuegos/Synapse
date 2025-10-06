@@ -3,7 +3,7 @@
 // This library provides the core functionality for log analysis that can be
 // used both by the CLI binary and MCP integrations.
 
-use tracing::{info, error, debug};
+use tracing::{info, error, debug, warn};
 
 pub mod ai_provider;
 pub mod analyzer;
@@ -41,8 +41,11 @@ pub async fn analyze_lines(
     selected_model: Option<&str>,
 ) -> Result<AnalysisResponse> {
     info!("Starting analysis of {} log lines with provider: {}", raw_lines.len(), provider_name);
+    info!("analyze_lines called with selected_model: {:?}", selected_model);
     if let Some(model) = selected_model {
         info!("Using selected model: {}", model);
+    } else {
+        warn!("No selected model provided to analyze_lines");
     }
     let loglens = match LogLens::new() {
         Ok(loglens) => {
@@ -262,6 +265,7 @@ impl LogLens {
         };
 
         // Analyze with AI using enhanced analysis with optional model selection
+        info!("Creating provider with model: {:?}", selected_model);
         let provider = create_provider_with_model(
             provider_name,
             &api_key,

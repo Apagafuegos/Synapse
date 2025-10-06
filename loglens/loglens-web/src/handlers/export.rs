@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
-    http::{header, StatusCode},
+    http::header,
     response::{Json, Response},
 };
 use serde::{Deserialize, Serialize};
@@ -8,7 +8,7 @@ use std::process::Command;
 use std::io::Write;
 use tempfile::NamedTempFile;
 
-use crate::{models::*, AppState};
+use crate::{error_handling::AppError, models::*, AppState};
 
 #[derive(Deserialize)]
 pub struct ExportQuery {
@@ -50,7 +50,7 @@ pub async fn export_html_report(
     State(state): State<AppState>,
     Path((project_id, analysis_id)): Path<(String, String)>,
     Query(params): Query<ExportQuery>,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     // Get analysis data
     let analysis = get_analysis_with_related_data(state, &project_id, &analysis_id).await?;
 
@@ -64,18 +64,18 @@ pub async fn export_html_report(
             format!("attachment; filename=\"loglens_analysis_{}.html\"", analysis_id),
         )
         .body(html_content.into())
-        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e: axum::http::Error| { tracing::error!("HTTP response error: {}", e); AppError::internal(format!("Failed to build response: {}", e)) })
 }
 
 // JSON Export
 pub async fn export_json_data(
     State(state): State<AppState>,
     Path((project_id, analysis_id)): Path<(String, String)>,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     let analysis = get_analysis_with_related_data(state, &project_id, &analysis_id).await?;
 
     let json_data =
-        serde_json::to_string_pretty(&analysis).map_err(|_: serde_json::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+        serde_json::to_string_pretty(&analysis).map_err(|e: serde_json::Error| { tracing::error!("JSON serialization error: {}", e); AppError::internal(format!("Failed to serialize JSON: {}", e)) })?;
 
     Response::builder()
         .header(header::CONTENT_TYPE, "application/json")
@@ -84,14 +84,14 @@ pub async fn export_json_data(
             format!("attachment; filename=\"loglens_analysis_{}.json\"", analysis_id),
         )
         .body(json_data.into())
-        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e: axum::http::Error| { tracing::error!("HTTP response error: {}", e); AppError::internal(format!("Failed to build response: {}", e)) })
 }
 
 // CSV Export
 pub async fn export_csv_data(
     State(state): State<AppState>,
     Path((project_id, analysis_id)): Path<(String, String)>,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     let analysis = get_analysis_with_related_data(state, &project_id, &analysis_id).await?;
 
     let csv_content = generate_csv_report(&analysis, &analysis_id);
@@ -103,14 +103,14 @@ pub async fn export_csv_data(
             format!("attachment; filename=\"loglens_analysis_{}.csv\"", analysis_id),
         )
         .body(csv_content.into())
-        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e: axum::http::Error| { tracing::error!("HTTP response error: {}", e); AppError::internal(format!("Failed to build response: {}", e)) })
 }
 
 // Markdown Export
 pub async fn export_markdown_report(
     State(state): State<AppState>,
     Path((project_id, analysis_id)): Path<(String, String)>,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     let analysis = get_analysis_with_related_data(state, &project_id, &analysis_id).await?;
 
     let markdown_content = generate_markdown_report(&analysis, &analysis_id);
@@ -122,14 +122,14 @@ pub async fn export_markdown_report(
             format!("attachment; filename=\"loglens_analysis_{}.md\"", analysis_id),
         )
         .body(markdown_content.into())
-        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e: axum::http::Error| { tracing::error!("HTTP response error: {}", e); AppError::internal(format!("Failed to build response: {}", e)) })
 }
 
 // PDF Export
 pub async fn export_pdf_report(
     State(state): State<AppState>,
     Path((project_id, analysis_id)): Path<(String, String)>,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     let analysis = get_analysis_with_related_data(state, &project_id, &analysis_id).await?;
 
     match generate_pdf_report(&analysis, &analysis_id).await {
@@ -141,7 +141,7 @@ pub async fn export_pdf_report(
                     format!("attachment; filename=\"loglens_analysis_{}.pdf\"", analysis_id),
                 )
                 .body(pdf_data.into())
-                .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
+                .map_err(|e: axum::http::Error| { tracing::error!("HTTP response error: {}", e); AppError::internal(format!("Failed to build response: {}", e)) })?)
         }
         Err(e) => {
             tracing::error!("Failed to generate PDF: {}", e);
@@ -161,7 +161,7 @@ pub async fn export_pdf_report(
             Ok(Response::builder()
                 .header(header::CONTENT_TYPE, "text/html")
                 .body(html_content.into())
-                .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)?)
+                .map_err(|e: axum::http::Error| { tracing::error!("HTTP response error: {}", e); AppError::internal(format!("Failed to build response: {}", e)) })?)
         }
     }
 }
@@ -359,7 +359,7 @@ fn generate_markdown_report(analysis: &serde_json::Value, analysis_id: &str) -> 
                             .get("unit")
                             .and_then(|u| u.as_str())
                             .unwrap_or("unknown"),
-                        if is_bottleneck { "⚠️ BOTTLENECK" } else { "✅ OK" }
+                        if is_bottleneck { "BOTTLENECK" } else { "OK" }
                     ));
                 }
             }
@@ -417,7 +417,7 @@ fn generate_markdown_report(analysis: &serde_json::Value, analysis_id: &str) -> 
 }
 
 // Helper function to generate PDF report
-async fn generate_pdf_report(analysis: &serde_json::Value, analysis_id: &str) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+async fn generate_pdf_report(analysis: &serde_json::Value, _analysis_id: &str) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
     // First generate HTML content
     let html_content = generate_html_report(analysis, true);
 
@@ -458,7 +458,7 @@ pub async fn create_share_link(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
     Json(req): Json<ShareRequest>,
-) -> Result<Json<ShareResponse>, StatusCode> {
+) -> Result<Json<ShareResponse>, AppError> {
     // Verify analysis exists and belongs to project
     let _analysis = sqlx::query_as::<_, Analysis>(
         "SELECT id, project_id, log_file_id, analysis_type, provider, level_filter, status, result, error_message, started_at, completed_at
@@ -468,8 +468,8 @@ pub async fn create_share_link(
     .bind(&project_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .map_err(|e: sqlx::Error| { tracing::error!("Database error: {}", e); AppError::Database(e) })?
+    .ok_or_else(|| AppError::not_found("Resource not found"))?;
 
     let share_id = uuid::Uuid::new_v4().to_string();
     let expires_in_hours = req.expires_in_hours.unwrap_or(24);
@@ -505,7 +505,7 @@ pub async fn create_share_link(
     .bind(chrono::Utc::now())
     .execute(state.db.pool())
     .await
-    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e: sqlx::Error| { tracing::error!("Database error: {}", e); AppError::Database(e) })?;
 
     let response = ShareResponse {
         share_id: share_id.clone(),
@@ -522,7 +522,7 @@ pub async fn create_share_link(
 pub async fn get_shared_analysis(
     State(state): State<AppState>,
     Path(share_id): Path<String>,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     // Get share information from knowledge base (placeholder implementation)
     let share_info = sqlx::query_as::<_, KnowledgeBaseEntry>(
         "SELECT id, project_id, title, problem_description, solution, tags, severity, is_public, usage_count, created_at, updated_at
@@ -531,17 +531,17 @@ pub async fn get_shared_analysis(
     .bind(&share_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .map_err(|e: sqlx::Error| { tracing::error!("Database error: {}", e); AppError::Database(e) })?
+    .ok_or_else(|| AppError::not_found("Resource not found"))?;
 
     // Parse share data
     let share_data: serde_json::Value = serde_json::from_str(&share_info.solution)
-        .map_err(|_: serde_json::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e: serde_json::Error| { tracing::error!("JSON serialization error: {}", e); AppError::internal(format!("Failed to serialize JSON: {}", e)) })?;
 
     let analysis_id = share_data
         .get("analysis_id")
         .and_then(|id| id.as_str())
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or_else(|| AppError::not_found("Resource not found"))?;
 
     let project_id = share_info.project_id.clone();
 
@@ -554,14 +554,14 @@ pub async fn get_shared_analysis(
     Response::builder()
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
         .body(html_content.into())
-        .map_err(|_: axum::http::Error| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e: axum::http::Error| { tracing::error!("HTTP response error: {}", e); AppError::internal(format!("Failed to build response: {}", e)) })
 }
 
 // Export history
 pub async fn get_export_history(
     State(_state): State<AppState>,
     Path(_project_id): Path<String>,
-) -> Result<Json<Vec<ExportMetadata>>, StatusCode> {
+) -> Result<Json<Vec<ExportMetadata>>, AppError> {
     // This would query an exports table in a real implementation
     // For now, return empty vector as placeholder
     Ok(Json(Vec::new()))
@@ -572,7 +572,7 @@ async fn get_analysis_with_related_data(
     state: AppState,
     project_id: &str,
     analysis_id: &str,
-) -> Result<serde_json::Value, StatusCode> {
+) -> Result<serde_json::Value, AppError> {
     let _analysis = sqlx::query_as::<_, Analysis>(
         "SELECT id, project_id, log_file_id, analysis_type, provider, level_filter, status, result, error_message, started_at, completed_at
          FROM analyses WHERE id = ? AND project_id = ?"
@@ -581,8 +581,8 @@ async fn get_analysis_with_related_data(
     .bind(project_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .map_err(|e: sqlx::Error| { tracing::error!("Database error: {}", e); AppError::Database(e) })?
+    .ok_or_else(|| AppError::not_found("Resource not found"))?;
 
     let correlations = sqlx::query_as::<_, ErrorCorrelation>(
         "SELECT id, project_id, primary_error_id, correlated_error_id, correlation_strength, correlation_type, created_at
@@ -595,7 +595,7 @@ async fn get_analysis_with_related_data(
     .bind(analysis_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e: sqlx::Error| { tracing::error!("Database error: {}", e); AppError::Database(e) })?;
 
     let metrics = sqlx::query_as::<_, PerformanceMetric>(
         "SELECT id, analysis_id, metric_name, metric_value, unit, threshold_value, is_bottleneck, created_at
@@ -604,7 +604,7 @@ async fn get_analysis_with_related_data(
     .bind(analysis_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e: sqlx::Error| { tracing::error!("Database error: {}", e); AppError::Database(e) })?;
 
     let analysis_json = serde_json::json!({
         "analysis": _analysis,

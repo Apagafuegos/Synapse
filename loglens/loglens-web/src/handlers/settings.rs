@@ -1,10 +1,9 @@
 use axum::{
     extract::State,
-    http::StatusCode,
     response::Json,
 };
 use serde::{Deserialize, Serialize};
-use crate::AppState;
+use crate::{error_handling::AppError, AppState};
 use anyhow::Result;
 use sqlx::Row;
 
@@ -41,7 +40,7 @@ impl Default for Settings {
 
 pub async fn get_settings(
     State(state): State<AppState>,
-) -> Result<Json<Settings>, StatusCode> {
+) -> Result<Json<Settings>, AppError> {
     let pool = state.db.pool();
     
     // Query settings from database
@@ -80,30 +79,30 @@ pub async fn get_settings(
 pub async fn update_settings(
     State(state): State<AppState>,
     Json(settings): Json<Settings>,
-) -> Result<Json<Settings>, StatusCode> {
+) -> Result<Json<Settings>, AppError> {
     let pool = state.db.pool();
-    
+
     // Validate the provider
     let valid_providers = ["openai", "claude", "gemini", "openrouter", "mock"];
     if !valid_providers.contains(&settings.default_provider.as_str()) {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(AppError::bad_request("Invalid provider"));
     }
-    
+
     // Validate log level
     let valid_levels = ["ERROR", "WARN", "INFO", "DEBUG"];
     if !valid_levels.contains(&settings.default_level.as_str()) {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(AppError::bad_request("Invalid log level"));
     }
-    
+
     // Validate max_lines
     if settings.max_lines < 100 || settings.max_lines > 10000 {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(AppError::bad_request("Max lines must be between 100 and 10000"));
     }
 
     // Validate timeout if provided
     if let Some(timeout) = settings.analysis_timeout_seconds {
         if !(60..=1800).contains(&timeout) { // 1 minute to 30 minutes
-            return Err(StatusCode::BAD_REQUEST);
+            return Err(AppError::bad_request("Timeout must be between 60 and 1800 seconds"));
         }
     }
 
@@ -136,7 +135,7 @@ pub async fn update_settings(
         }
         Err(e) => {
             tracing::error!("Failed to update settings: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+            Err(AppError::Database(e))
         }
     }
 }

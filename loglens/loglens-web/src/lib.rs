@@ -36,7 +36,9 @@ pub struct AppState {
     pub circuit_breakers: Arc<CircuitBreakerRegistry>,
     pub cache_manager: Arc<CacheManager>,
     pub streaming_hub: Arc<crate::streaming::StreamingHub>,
+    pub streaming_manager: Arc<tokio::sync::RwLock<crate::streaming::sources::StreamingSourceManager>>,
     pub optimized_db: Arc<OptimizedDbOps>,
+    pub metrics_collector: Arc<crate::middleware::metrics::MetricsCollector>,
 }
 
 impl AppState {
@@ -59,11 +61,25 @@ impl AppState {
         // Initialize streaming hub
         let streaming_hub = Arc::new(streaming::StreamingHub::new());
 
+        // Initialize streaming source manager
+        let streaming_manager = Arc::new(tokio::sync::RwLock::new(
+            crate::streaming::sources::StreamingSourceManager::new(Arc::clone(&streaming_hub))
+        ));
+
+        // Restore active streaming sources from database
+        if let Err(e) = restore_streaming_sources(&db, &streaming_manager).await {
+            tracing::warn!("Failed to restore streaming sources: {}", e);
+        }
+
         // Initialize optimized database operations
         let optimized_db = Arc::new(OptimizedDbOps::new(
             db.pool().clone(),
             Arc::clone(&cache_manager)
         ));
+
+        // Initialize metrics collector
+        let metrics_collector = Arc::new(middleware::metrics::MetricsCollector::new());
+        metrics_collector.clone().start_background_tasks();
 
         Ok(Self {
             db,
@@ -71,7 +87,9 @@ impl AppState {
             circuit_breakers,
             cache_manager,
             streaming_hub,
+            streaming_manager,
             optimized_db,
+            metrics_collector,
         })
     }
 
@@ -123,6 +141,162 @@ impl AppState {
             version: env!("CARGO_PKG_VERSION").to_string(),
             services,
         }
+    }
+}
+
+/// Stored parser configuration (for deserialization from database)
+#[derive(Debug, serde::Deserialize)]
+struct StoredParserConfig {
+    log_format: String,
+    timestamp_format: Option<String>,
+    level_field: Option<String>,
+    message_field: Option<String>,
+    metadata_fields: Option<Vec<String>>,
+}
+
+/// Restore active streaming sources from database on startup
+async fn restore_streaming_sources(
+    db: &Database,
+    streaming_manager: &Arc<tokio::sync::RwLock<crate::streaming::sources::StreamingSourceManager>>,
+) -> anyhow::Result<()> {
+    use sqlx::Row;
+
+    tracing::info!("Restoring active streaming sources from database...");
+
+    // Query all active sources
+    let rows = sqlx::query("SELECT * FROM streaming_sources WHERE status = 'active'")
+        .fetch_all(db.pool())
+        .await?;
+
+    let mut manager = streaming_manager.write().await;
+    let mut restored_count = 0;
+
+    for row in rows {
+        match restore_source_from_row(&row, &mut manager).await {
+            Ok(source_id) => {
+                tracing::info!("Restored streaming source: {}", source_id);
+                restored_count += 1;
+            }
+            Err(e) => {
+                let id: String = row.try_get("id").unwrap_or_else(|_| "unknown".to_string());
+                tracing::error!("Failed to restore streaming source {}: {}", id, e);
+            }
+        }
+    }
+
+    drop(manager);
+    tracing::info!("Restored {} streaming sources", restored_count);
+    Ok(())
+}
+
+/// Helper to restore a single source from a database row
+async fn restore_source_from_row(
+    row: &sqlx::sqlite::SqliteRow,
+    manager: &mut crate::streaming::sources::StreamingSourceManager,
+) -> anyhow::Result<String> {
+    use sqlx::Row;
+    use uuid::Uuid;
+
+    let source_id: String = row.try_get("id")?;
+    let project_id: String = row.try_get("project_id")?;
+    let project_id = Uuid::parse_str(&project_id)?;
+    let name: String = row.try_get("name")?;
+    let source_type_str: String = row.try_get("source_type")?;
+    let config_json: String = row.try_get("config")?;
+    let parser_config_json: Option<String> = row.try_get("parser_config").ok();
+    let buffer_size: Option<i64> = row.try_get("buffer_size").ok();
+    let batch_timeout_seconds: Option<i64> = row.try_get("batch_timeout_seconds").ok();
+    let restart_on_error: Option<bool> = row.try_get("restart_on_error").ok();
+    let max_restarts: Option<i64> = row.try_get("max_restarts").ok();
+
+    // Parse source type
+    let config_value: serde_json::Value = serde_json::from_str(&config_json)?;
+    let source_type = parse_source_type_from_config(&source_type_str, &config_value)?;
+
+    // Parse parser config
+    let parser_config = if let Some(json_str) = parser_config_json {
+        let stored_config: StoredParserConfig = serde_json::from_str(&json_str)?;
+        parse_stored_parser_config(stored_config)
+    } else {
+        crate::streaming::sources::ParserConfig::default()
+    };
+
+    // Create source config
+    let config = crate::streaming::sources::StreamingSourceConfig {
+        source_type,
+        project_id,
+        name,
+        parser_config,
+        buffer_size: buffer_size.map(|s| s as usize).unwrap_or(100),
+        batch_timeout: tokio::time::Duration::from_secs(batch_timeout_seconds.map(|s| s as u64).unwrap_or(2)),
+        restart_on_error: restart_on_error.unwrap_or(true),
+        max_restarts: max_restarts.map(|m| m as u32),
+    };
+
+    // Start the source
+    manager.start_source(config).await?;
+
+    Ok(source_id)
+}
+
+/// Parse source type from stored config
+fn parse_source_type_from_config(
+    source_type: &str,
+    config: &serde_json::Value,
+) -> anyhow::Result<crate::streaming::sources::StreamingSourceType> {
+    use std::path::PathBuf;
+
+    match source_type {
+        "file" => {
+            let path = config.get("path")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("Missing 'path' for file source"))?;
+            Ok(crate::streaming::sources::StreamingSourceType::File { path: PathBuf::from(path) })
+        }
+        "command" => {
+            let command = config.get("command")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("Missing 'command'"))?;
+            let args = config.get("args")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+            Ok(crate::streaming::sources::StreamingSourceType::Command { command: command.to_string(), args })
+        }
+        "tcp" => {
+            let port = config.get("port")
+                .and_then(|v| v.as_u64())
+                .ok_or_else(|| anyhow::anyhow!("Missing 'port' for TCP source"))?;
+            Ok(crate::streaming::sources::StreamingSourceType::TcpListener { port: port as u16 })
+        }
+        "stdin" => Ok(crate::streaming::sources::StreamingSourceType::Stdin),
+        "http" => {
+            let path = config.get("path")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("Missing 'path' for HTTP source"))?;
+            Ok(crate::streaming::sources::StreamingSourceType::HttpEndpoint { path: path.to_string() })
+        }
+        _ => Err(anyhow::anyhow!("Unknown source type: {}", source_type))
+    }
+}
+
+/// Parse parser config from stored configuration
+fn parse_stored_parser_config(
+    stored: StoredParserConfig,
+) -> crate::streaming::sources::ParserConfig {
+    let log_format = match stored.log_format.as_str() {
+        "json" => crate::streaming::sources::LogFormat::Json,
+        "syslog" => crate::streaming::sources::LogFormat::Syslog,
+        "common" => crate::streaming::sources::LogFormat::CommonLog,
+        _ => crate::streaming::sources::LogFormat::Text,
+    };
+
+    crate::streaming::sources::ParserConfig {
+        log_format,
+        timestamp_format: stored.timestamp_format,
+        level_field: stored.level_field,
+        message_field: stored.message_field,
+        metadata_fields: stored.metadata_fields.unwrap_or_default(),
     }
 }
 

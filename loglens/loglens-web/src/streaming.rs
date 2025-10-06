@@ -327,7 +327,7 @@ struct ClientMessage {
 async fn handle_client_message(
     message: &str,
     project_id: Uuid,
-    state: &AppState,
+    _state: &AppState,
 ) -> anyhow::Result<()> {
     let client_msg: ClientMessage = serde_json::from_str(message)?;
     

@@ -1,8 +1,8 @@
-use axum::{extract::State, http::StatusCode, response::Json};
+use axum::{extract::State, response::Json};
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{models::AnalysisStatus, AppState};
+use crate::{error_handling::AppError, models::AnalysisStatus, AppState};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DashboardStats {
@@ -14,14 +14,14 @@ pub struct DashboardStats {
 
 pub async fn get_dashboard_stats(
     State(state): State<AppState>,
-) -> Result<Json<DashboardStats>, StatusCode> {
+) -> Result<Json<DashboardStats>, AppError> {
     // Get total projects
     let total_projects = sqlx::query!("SELECT COUNT(*) as count FROM projects")
         .fetch_one(state.db.pool())
         .await
         .map_err(|e: sqlx::Error| {
             tracing::error!("Failed to count projects: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            AppError::Database(e)
         })?
         .count;
 
@@ -35,7 +35,7 @@ pub async fn get_dashboard_stats(
     .await
     .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to count weekly analyses: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        AppError::Database(e)
     })?
     .count;
 
@@ -59,7 +59,7 @@ pub async fn get_dashboard_stats(
     .await
     .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to calculate average processing time: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        AppError::Database(e)
     })?
     .avg_minutes;
 
@@ -73,7 +73,7 @@ pub async fn get_dashboard_stats(
     .await
     .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to count critical errors: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        AppError::Database(e)
     })?
     .count;
 

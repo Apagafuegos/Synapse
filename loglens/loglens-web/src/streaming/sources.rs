@@ -521,7 +521,7 @@ impl StreamingSourceManager {
     ) -> Option<StreamingLogEntry> {
         // Use the existing parser from loglens-core
         let timestamp_regex = Regex::new(r"(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})?)").unwrap();
-        let level_regex = Regex::new(r"\b(ERROR|WARN|INFO|DEBUG|TRACE|FATAL)\b").unwrap();
+        let _level_regex = Regex::new(r"\b(ERROR|WARN|INFO|DEBUG|TRACE|FATAL)\b").unwrap();
         
         let log_entry = parse_single_log_line(line, &timestamp_regex);
         
@@ -579,7 +579,7 @@ impl StreamingSourceManager {
     ) -> Option<StreamingLogEntry> {
         // Basic syslog parsing - could be enhanced with proper RFC 3164/5424 parsing
         let timestamp_regex = Regex::new(r"(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})?)").unwrap();
-        let level_regex = Regex::new(r"\b(ERROR|WARN|INFO|DEBUG|TRACE|FATAL)\b").unwrap();
+        let _level_regex = Regex::new(r"\b(ERROR|WARN|INFO|DEBUG|TRACE|FATAL)\b").unwrap();
         
         let log_entry = parse_single_log_line(line, &timestamp_regex);
         

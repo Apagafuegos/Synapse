@@ -1,9 +1,10 @@
 use axum::{
+    response::IntoResponse,
     routing::{delete, get, post},
     Router,
 };
 
-use crate::{handlers, streaming, AppState};
+use crate::{handlers, middleware, streaming, AppState};
 
 pub fn api_routes() -> Router<AppState> {
     Router::new()
@@ -26,8 +27,14 @@ pub fn api_routes() -> Router<AppState> {
             "/projects/:project_id/files/:file_id/analyze",
             post(handlers::start_analysis),
         )
+        .route(
+            "/projects/:project_id/files/:file_id/analyze/ws",
+            get(handlers::websocket::websocket_analysis_handler),
+        )
         .route("/analyses/:id", get(handlers::get_analysis))
         .route("/projects/:id/analyses", get(handlers::list_analyses))
+        .route("/analyses/:id/performance-metrics", get(handlers::get_performance_metrics))
+        .route("/projects/:id/error-correlations", get(handlers::get_error_correlations))
         // MCP integration routes
         .route("/projects/:id/mcp", post(handlers::handle_mcp_request))
         .route("/analyses/:id/mcp", get(handlers::get_analysis_for_mcp))
@@ -48,6 +55,7 @@ pub fn api_routes() -> Router<AppState> {
             "/projects/:id/knowledge/:entry_id",
             get(handlers::get_knowledge_entry),
         )
+        .route("/knowledge/public", get(handlers::get_public_knowledge))
         .route("/projects/:id/patterns", get(handlers::get_error_patterns))
         .route(
             "/projects/:id/patterns/:pattern_id",
@@ -120,4 +128,27 @@ pub fn api_routes() -> Router<AppState> {
         .route("/projects/:project_id/streaming/ingest", post(handlers::streaming::ingest_logs))
         .route("/projects/:project_id/streaming/flush", post(handlers::streaming::flush_project_buffers))
         .route("/projects/:project_id/streaming/logs", get(handlers::streaming::get_recent_logs))
+        // Metrics routes
+        .route("/metrics", get(metrics_handler_wrapper))
+        .route("/health/metrics", get(health_with_metrics_handler_wrapper))
+}
+
+/// Wrapper to extract metrics_collector from AppState for metrics endpoint
+async fn metrics_handler_wrapper(
+    axum::extract::State(state): axum::extract::State<AppState>,
+) -> impl axum::response::IntoResponse {
+    match middleware::metrics::metrics_handler(state.metrics_collector).await {
+        Ok(json) => json.into_response(),
+        Err(status) => status.into_response(),
+    }
+}
+
+/// Wrapper to extract metrics_collector from AppState for health endpoint
+async fn health_with_metrics_handler_wrapper(
+    axum::extract::State(state): axum::extract::State<AppState>,
+) -> impl axum::response::IntoResponse {
+    match middleware::metrics::health_with_metrics_handler(state.metrics_collector).await {
+        Ok(json) => json.into_response(),
+        Err(status) => status.into_response(),
+    }
 }

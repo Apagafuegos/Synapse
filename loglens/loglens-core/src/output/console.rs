@@ -46,7 +46,8 @@ impl ConsoleOutput {
     
     fn stats(&self, stats: &super::ReportStats) -> String {
         format!(
-            "📊 STATISTICS\n┌─────────────────────────────────────────────────────────────────┐\n│  Errors:    {:<42} Warnings:  {:<10} │\n│  Info:       {:<42} Debug:     {:<10} │\n│  Unique:     {:<42}            │\n└─────────────────────────────────────────────────────────────────┘",
+            "STATISTICS
+STATISTICS\n┌─────────────────────────────────────────────────────────────────┐\n│  Errors:    {:<42} Warnings:  {:<10} │\n│  Info:       {:<42} Debug:     {:<10} │\n│  Unique:     {:<42}            │\n└─────────────────────────────────────────────────────────────────┘",
             stats.error_count.to_string(),
             stats.warning_count.to_string(),
             stats.info_count.to_string(),
@@ -57,7 +58,12 @@ impl ConsoleOutput {
     
     fn analysis(&self, analysis: &super::AnalysisResponse) -> String {
         format!(
-            "🔍 ANALYSIS RESULTS\n\n📜 SEQUENCE OF EVENTS:\n{}\n\n⚠️  ROOT CAUSE:\n{}\n\n🎯 LOCATION:\n{}",
+            "ANALYSIS RESULTS
+
+ANALYSIS RESULTS\n\nSEQUENCE OF EVENTS:
+SEQUENCE OF EVENTS:\n{}\n\nROOT CAUSE:
+ROOT CAUSE:\n{}\n\nLOCATION:
+LOCATION:\n{}",
             self.wrap_text(&analysis.sequence_of_events, 60),
             self.wrap_text(&analysis.root_cause.description, 60),
             self.wrap_text(analysis.root_cause.file_location.as_deref().unwrap_or("Unknown"), 60)
@@ -66,10 +72,12 @@ impl ConsoleOutput {
     
     fn logs(&self, logs: &[super::ProcessedLogEntry]) -> String {
         if logs.is_empty() {
-            return "\n📄 LOG ENTRIES\n\nNo log entries found.".to_string();
+            return "\nLOG ENTRIES
+LOG ENTRIES\n\nNo log entries found.".to_string();
         }
         
-        let mut result = format!("\n📄 LOG ENTRIES ({} entries)\n\n", logs.len());
+        let mut result = format!("\nLOG ENTRIES
+LOG ENTRIES ({} entries)\n\n", logs.len());
         
         for (i, log) in logs.iter().take(10).enumerate() { // Show first 10 entries
             result.push_str(&format!(
@@ -122,18 +130,18 @@ impl ConsoleOutput {
     
     fn format_level(&self, level: &str) -> String {
         match level {
-            "ERROR" => "🔴 ERROR".to_string(),
-            "WARN" | "WARNING" => "🟡 WARN".to_string(),
-            "INFO" => "🟢 INFO".to_string(),
-            "DEBUG" => "🔵 DEBUG".to_string(),
-            _ => format!("⚪ {}", level),
+            "ERROR" => "ERROR".to_string(),
+            "WARN" | "WARNING" => "WARN".to_string(),
+            "INFO" => "INFO".to_string(),
+            "DEBUG" => "DEBUG".to_string(),
+            _ => format!("{}", level),
         }
     }
     
     fn format_timestamp(&self, timestamp: Option<&str>) -> String {
         match timestamp {
-            Some(ts) => format!("📅 {}", ts),
-            None => "📅 No timestamp".to_string(),
+            Some(ts) => format!("{}", ts),
+            None => "No timestamp".to_string(),
         }
     }
 }

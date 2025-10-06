@@ -1,12 +1,11 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
     response::Json,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
-use crate::{models::*, AppState};
+use crate::{error_handling::AppError, models::*, AppState};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CorrelationAnalysisRequest {
@@ -100,9 +99,9 @@ pub async fn analyze_correlations(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
     Json(req): Json<CorrelationAnalysisRequest>,
-) -> Result<Json<CorrelationAnalysisResponse>, StatusCode> {
+) -> Result<Json<CorrelationAnalysisResponse>, AppError> {
     if req.analysis_ids.len() < 2 {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(AppError::bad_request("At least 2 analyses required for correlation"));
     }
 
     let threshold = req.correlation_threshold.unwrap_or(0.7);
@@ -119,7 +118,10 @@ pub async fn analyze_correlations(
         .bind(&project_id)
         .fetch_optional(state.db.pool())
         .await
-        .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|e: sqlx::Error| {
+            tracing::error!("Failed to fetch analysis {} for correlation: {}", analysis_id, e);
+            AppError::Database(e)
+        })?
         {
             analyses.push(analysis);
         }
@@ -167,7 +169,7 @@ pub async fn detect_anomalies(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
     Json(req): Json<AnomalyDetectionRequest>,
-) -> Result<Json<AnomalyDetectionResponse>, StatusCode> {
+) -> Result<Json<AnomalyDetectionResponse>, AppError> {
     let sensitivity = req.sensitivity.unwrap_or(0.8);
     let lookback_hours = req.lookback_hours.unwrap_or(24);
 
@@ -180,13 +182,16 @@ pub async fn detect_anomalies(
     .bind(&project_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .map_err(|e: sqlx::Error| {
+        tracing::error!("Failed to fetch analysis {} for anomaly detection: {}", req.analysis_id, e);
+        AppError::Database(e)
+    })?
+    .ok_or_else(|| AppError::not_found(format!("Analysis {} not found", req.analysis_id)))?;
 
     // Get historical analyses for comparison
     let historical_analyses = sqlx::query_as::<_, Analysis>(
         "SELECT id, project_id, log_file_id, analysis_type, provider, level_filter, status, result, error_message, started_at, completed_at
-         FROM analyses 
+         FROM analyses
          WHERE project_id = ? AND id != ? AND started_at >= datetime('now', '-{} hours')
          ORDER BY started_at DESC",
     )
@@ -195,7 +200,10 @@ pub async fn detect_anomalies(
     .bind(lookback_hours)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e: sqlx::Error| {
+        tracing::error!("Failed to fetch historical analyses for project {}: {}", project_id, e);
+        AppError::Database(e)
+    })?;
 
     // Detect anomalies
     let anomalies = detect_anomalies_in_analysis(&analysis, &historical_analyses, sensitivity);
@@ -222,14 +230,13 @@ pub async fn analyze_multiple_logs(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
     Json(req): Json<MultiLogAnalysisRequest>,
-) -> Result<Json<MultiLogAnalysisResponse>, StatusCode> {
+) -> Result<Json<MultiLogAnalysisResponse>, AppError> {
     if req.log_files.is_empty() {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(AppError::bad_request("At least one log file required"));
     }
 
     let mut file_analyses = HashMap::new();
     let mut all_errors = Vec::new();
-    let mut cross_file_patterns = Vec::new();
 
     // Analyze each log file
     for file_id in &req.log_files {
@@ -244,7 +251,10 @@ pub async fn analyze_multiple_logs(
         .bind(&req.level_filter)
         .fetch_all(state.db.pool())
         .await
-        .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e: sqlx::Error| {
+            tracing::error!("Failed to fetch analyses for file {}: {}", file_id, e);
+            AppError::Database(e)
+        })?;
 
         if let Some(latest_analysis) = analyses.first() {
             // Extract errors from analysis result
@@ -268,7 +278,10 @@ pub async fn analyze_multiple_logs(
             .bind(&latest_analysis.id)
             .fetch_all(state.db.pool())
             .await
-            .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|e: sqlx::Error| {
+                tracing::error!("Failed to fetch performance metrics for analysis {}: {}", latest_analysis.id, e);
+                AppError::Database(e)
+            })?;
 
             file_analyses.insert(
                 file_id.clone(),
@@ -290,7 +303,7 @@ pub async fn analyze_multiple_logs(
     }
 
     // Find cross-file patterns
-    cross_file_patterns = find_cross_file_patterns(&all_errors);
+    let cross_file_patterns = find_cross_file_patterns(&all_errors);
 
     // Create summary
     let summary = MultiLogSummary {

@@ -103,12 +103,24 @@ async fn main() -> anyhow::Result<()> {
     tracing::debug!("Initializing streaming hub");
     let streaming_hub = Arc::new(StreamingHub::new());
 
+    // Initialize streaming source manager
+    tracing::debug!("Initializing streaming source manager");
+    let streaming_manager = Arc::new(tokio::sync::RwLock::new(
+        streaming::sources::StreamingSourceManager::new(Arc::clone(&streaming_hub))
+    ));
+
     // Initialize optimized database operations
     tracing::debug!("Initializing optimized database operations");
     let optimized_db = Arc::new(OptimizedDbOps::new(
         db.pool().clone(),
         Arc::clone(&cache_manager),
     ));
+
+    // Initialize metrics collector
+    tracing::debug!("Initializing metrics collector");
+    let metrics_collector = Arc::new(middleware::metrics::MetricsCollector::new());
+    metrics_collector.clone().start_background_tasks();
+    tracing::info!("Metrics collector initialized and background tasks started");
 
     // Build application router
     tracing::debug!("Building application router");
@@ -117,7 +129,9 @@ async fn main() -> anyhow::Result<()> {
         cache_manager,
         circuit_breakers,
         streaming_hub,
+        streaming_manager,
         optimized_db,
+        metrics_collector,
         config.clone(),
     )
     .await;
@@ -125,7 +139,7 @@ async fn main() -> anyhow::Result<()> {
     // Start server
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
     tracing::info!("Starting LogLens web server on http://{}", addr);
-    println!("🚀 LogLens web server starting on http://{}", addr);
+    println!("LogLens web server starting on http://{}", addr);
     tracing::info!(
         "Server configuration: workers={}, max_upload={}",
         4,
@@ -143,7 +157,9 @@ pub async fn create_app(
     cache_manager: Arc<CacheManager>,
     circuit_breakers: Arc<CircuitBreakerRegistry>,
     streaming_hub: Arc<StreamingHub>,
+    streaming_manager: Arc<tokio::sync::RwLock<streaming::sources::StreamingSourceManager>>,
     optimized_db: Arc<OptimizedDbOps>,
+    metrics_collector: Arc<middleware::metrics::MetricsCollector>,
     config: WebConfig,
 ) -> Router {
     // Determine frontend directory path
@@ -151,6 +167,8 @@ pub async fn create_app(
     let index_path = frontend_path.join("index.html");
 
     tracing::info!("Serving frontend from: {}", frontend_path.display());
+
+    let metrics_collector_clone = metrics_collector.clone();
 
     Router::new()
         .route("/health", get(enhanced_health_check))
@@ -164,6 +182,9 @@ pub async fn create_app(
         .fallback(handle_404)
         .layer(
             ServiceBuilder::new()
+                .layer(axum::middleware::from_fn(move |req, next| {
+                    middleware::metrics::metrics_middleware(metrics_collector_clone.clone(), req, next)
+                }))
                 .layer(axum::middleware::from_fn(trace_request))
                 .layer(TraceLayer::new_for_http())
                 .layer(CorsLayer::permissive())
@@ -175,7 +196,9 @@ pub async fn create_app(
             circuit_breakers,
             cache_manager,
             streaming_hub,
+            streaming_manager,
             optimized_db,
+            metrics_collector,
         })
 }
 
@@ -229,7 +252,9 @@ pub struct AppState {
     pub circuit_breakers: Arc<CircuitBreakerRegistry>,
     pub cache_manager: Arc<CacheManager>,
     pub streaming_hub: Arc<StreamingHub>,
+    pub streaming_manager: Arc<tokio::sync::RwLock<streaming::sources::StreamingSourceManager>>,
     pub optimized_db: Arc<OptimizedDbOps>,
+    pub metrics_collector: Arc<middleware::metrics::MetricsCollector>,
 }
 
 async fn process_pending_analyses_task(
@@ -292,16 +317,16 @@ async fn process_pending_analyses_task(
                     return;
                 }
                 
-                // Fetch API key from settings
-                let api_key = match sqlx::query!("SELECT api_key FROM settings LIMIT 1")
+                // Fetch API key and selected model from settings
+                let (api_key, selected_model) = match sqlx::query!("SELECT api_key, selected_model FROM settings LIMIT 1")
                     .fetch_optional(&db_pool_clone)
                     .await
                 {
-                    Ok(Some(settings)) if !settings.api_key.is_empty() => Some(settings.api_key),
-                    Ok(_) => None,
+                    Ok(Some(settings)) if !settings.api_key.is_empty() => (Some(settings.api_key), settings.selected_model),
+                    Ok(_) => (None, None),
                     Err(e) => {
-                        tracing::error!("Failed to fetch API key from settings: {}", e);
-                        None
+                        tracing::error!("Failed to fetch settings from database: {}", e);
+                        (None, None)
                     }
                 };
                 
@@ -313,6 +338,8 @@ async fn process_pending_analyses_task(
                     api_key.as_deref(),
                     &circuit_breakers_clone,
                     timeout_secs,
+                    None, // user_context - not available in background task
+                    selected_model.as_deref(),
                 ).await;
                 
                 match result {

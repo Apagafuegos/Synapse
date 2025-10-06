@@ -18,31 +18,36 @@ pub enum AppError {
     
     #[error("Not found: {resource}")]
     NotFound { resource: String },
-    
+
+    #[allow(dead_code)]
     #[error("Unauthorized access")]
     Unauthorized,
-    
+
+    #[allow(dead_code)]
     #[error("Rate limit exceeded")]
     RateLimitExceeded,
-    
+
     #[error("File processing error: {message}")]
     FileProcessing { message: String },
-    
+
     #[error("AI provider error: {provider} - {message}")]
     AIProvider { provider: String, message: String },
-    
+
+    #[allow(dead_code)]
     #[error("Cache error: {message}")]
     Cache { message: String },
-    
+
+    #[allow(dead_code)]
     #[error("Circuit breaker is open: {service}")]
     CircuitBreakerOpen { service: String },
-    
+
     #[error("Internal server error: {message}")]
     Internal { message: String },
-    
+
     #[error("Bad request: {message}")]
     BadRequest { message: String },
-    
+
+    #[allow(dead_code)]
     #[error("Service temporarily unavailable: {service}")]
     ServiceUnavailable { service: String },
 }
@@ -74,6 +79,7 @@ impl ErrorResponse {
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_trace_id(mut self, trace_id: String) -> Self {
         self.trace_id = Some(trace_id);
         self
@@ -271,12 +277,14 @@ impl AppError {
         }
     }
 
+    #[allow(dead_code)]
     pub fn cache(message: impl Into<String>) -> Self {
         Self::Cache {
             message: message.into(),
         }
     }
 
+    #[allow(dead_code)]
     pub fn circuit_breaker_open(service: impl Into<String>) -> Self {
         Self::CircuitBreakerOpen {
             service: service.into(),
@@ -289,10 +297,18 @@ impl AppError {
         }
     }
 
+    #[allow(dead_code)]
     pub fn service_unavailable(service: impl Into<String>) -> Self {
         Self::ServiceUnavailable {
             service: service.into(),
         }
+    }
+}
+
+// Convert ValidationError to AppError
+impl From<crate::validation::ValidationError> for AppError {
+    fn from(err: crate::validation::ValidationError) -> Self {
+        AppError::validation(err.to_message())
     }
 }
 
@@ -308,6 +324,7 @@ pub async fn handle_404(uri: Uri) -> impl IntoResponse {
 }
 
 // Generic error handler for unhandled errors
+#[allow(dead_code)]
 pub async fn handle_error(error: Box<dyn std::error::Error>) -> impl IntoResponse {
     error!("Unhandled error: {}", error);
 
@@ -321,9 +338,11 @@ pub async fn handle_error(error: Box<dyn std::error::Error>) -> impl IntoRespons
 }
 
 // Result type alias
+#[allow(dead_code)]
 pub type AppResult<T> = Result<T, AppError>;
 
 // Validation helpers
+#[allow(dead_code)]
 pub mod validation {
     use super::*;
     use uuid::Uuid;

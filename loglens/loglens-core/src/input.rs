@@ -357,6 +357,7 @@ pub fn decode_lines_robust(data: &[u8], _decoder: &encoding_rs::Decoder) -> Resu
     Ok(lines)
 }
 
+#[allow(dead_code)]
 fn decode_line_safely(line_bytes: &[u8], _decoder: &encoding_rs::Decoder) -> Result<String, String> {
     if line_bytes.is_empty() {
         return Ok(String::new());

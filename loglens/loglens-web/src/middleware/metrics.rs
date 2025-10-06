@@ -25,21 +25,38 @@ pub struct MetricsCollector {
     alerts: broadcast::Sender<QualityAlert>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct EndpointMetrics {
     pub path: String,
     pub request_count: u64,
     pub error_count: u64,
+    #[serde(serialize_with = "serialize_duration_as_millis")]
     pub total_duration: Duration,
+    #[serde(serialize_with = "serialize_duration_as_millis")]
     pub min_duration: Duration,
+    #[serde(serialize_with = "serialize_duration_as_millis")]
     pub max_duration: Duration,
+    #[serde(serialize_with = "serialize_duration_as_millis")]
     pub avg_duration: Duration,
+    #[serde(serialize_with = "serialize_duration_as_millis")]
     pub p95_duration: Duration,
+    #[serde(serialize_with = "serialize_duration_as_millis")]
     pub p99_duration: Duration,
+    #[serde(serialize_with = "serialize_systemtime_as_secs")]
     pub last_accessed: SystemTime,
 }
 
-#[derive(Clone, Debug)]
+fn serialize_systemtime_as_secs<S>(time: &SystemTime, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    match time.duration_since(UNIX_EPOCH) {
+        Ok(duration) => serializer.serialize_u64(duration.as_secs()),
+        Err(_) => serializer.serialize_u64(0),
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct QualityMetrics {
     pub analysis_accuracy: f64,
     pub analysis_completion_rate: f64,
@@ -388,15 +405,31 @@ impl MetricsCollector {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct MetricsSummary {
     pub request_count: u64,
     pub error_count: u64,
     pub error_rate: f64,
+    #[serde(serialize_with = "serialize_duration_as_millis")]
     pub avg_response_time: Duration,
+    #[serde(serialize_with = "serialize_duration_as_secs")]
     pub uptime: Duration,
     pub quality_metrics: QualityMetrics,
     pub endpoint_metrics: Vec<EndpointMetrics>,
+}
+
+fn serialize_duration_as_millis<S>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_u64(duration.as_millis() as u64)
+}
+
+fn serialize_duration_as_secs<S>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_u64(duration.as_secs())
 }
 
 impl Default for QualityMetrics {
@@ -418,6 +451,7 @@ impl Default for QualityMetrics {
 
 /// Axum middleware for metrics collection
 pub async fn metrics_middleware(
+    collector: Arc<MetricsCollector>,
     request: Request,
     next: Next,
 ) -> Response {
@@ -432,13 +466,13 @@ pub async fn metrics_middleware(
     let duration = start.elapsed();
     let status = response.status().as_u16();
 
-    // Record metrics (this would need access to the MetricsCollector instance)
-    // In practice, you'd store the collector in app state and access it here
-    tracing::info!(
-        "Request: {} {} - {}ms - Status: {}",
+    // Record metrics
+    collector.record_request(&path, duration, status);
+
+    tracing::debug!(
+        "Request: {} - {}ms - Status: {}",
         path,
         duration.as_millis(),
-        status,
         if status >= 400 { "ERROR" } else { "OK" }
     );
 
@@ -476,7 +510,7 @@ pub async fn health_with_metrics_handler(
     }))
 }
 
-fn calculate_quality_score(metrics: &QualityMetrics) -> f64 {
+pub fn calculate_quality_score(metrics: &QualityMetrics) -> f64 {
     // Weighted quality score calculation
     let weights = [
         (metrics.analysis_accuracy, 0.30),

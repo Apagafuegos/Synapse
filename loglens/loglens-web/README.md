@@ -6,11 +6,13 @@ A high-performance Rust web backend for intelligent log analysis with AI integra
 
 ### Core Capabilities
 - **Multi-Provider AI Analysis**: Support for OpenRouter, OpenAI, Claude, and Gemini
-- **Real-time Processing**: WebSocket-based streaming analysis with progress updates  
+- **Real-time Processing**: WebSocket-based streaming analysis with progress updates
 - **Advanced Analytics**: Error correlation, anomaly detection, and performance bottlenecks
-- **Knowledge Base**: Project-specific pattern recognition and solution accumulation
+- **Knowledge Base**: Project-specific pattern recognition and solution accumulation with public sharing
 - **MCP Integration**: Three-tier context referencing for AI conversations
 - **Multi-format Export**: HTML, JSON, CSV reports with professional templates
+- **Streaming Sources**: Real-time log ingestion from files, commands, TCP, and HTTP endpoints
+- **Pattern Filtering**: Advanced error pattern categorization with severity-based filtering
 
 ### Performance & Reliability
 - **Intelligent Caching**: Multi-layer LRU caching with TTL and performance monitoring
@@ -193,12 +195,28 @@ GET    /api/analyses/{id}/metrics       # Get performance metrics
 
 #### Knowledge Base
 ```http
-GET    /api/projects/{id}/knowledge     # List knowledge entries
-POST   /api/projects/{id}/knowledge     # Create knowledge entry
-GET    /api/projects/{id}/knowledge/{id} # Get knowledge entry
-PUT    /api/projects/{id}/knowledge/{id} # Update knowledge entry
-DELETE /api/projects/{id}/knowledge/{id} # Delete knowledge entry
-GET    /api/projects/{id}/patterns      # Get error patterns
+GET    /api/projects/{id}/knowledge         # List knowledge entries
+POST   /api/projects/{id}/knowledge         # Create knowledge entry
+GET    /api/projects/{id}/knowledge/{id}    # Get knowledge entry
+PUT    /api/projects/{id}/knowledge/{id}    # Update knowledge entry
+DELETE /api/projects/{id}/knowledge/{id}    # Delete knowledge entry
+GET    /api/knowledge/public                # List public knowledge entries
+GET    /api/projects/{id}/patterns          # Get error patterns (with category/severity filters)
+```
+
+#### Streaming Sources
+```http
+POST   /api/projects/{id}/streaming/sources          # Create streaming source
+GET    /api/projects/{id}/streaming/sources          # List streaming sources
+DELETE /api/projects/{id}/streaming/sources/{id}    # Stop streaming source
+GET    /api/projects/{id}/streaming/stats            # Get streaming statistics
+GET    /api/projects/{id}/streaming/logs             # Get recent streaming logs (with filters)
+```
+
+#### Analytics (NEW)
+```http
+GET    /api/analyses/{id}/performance-metrics        # Get performance metrics for analysis
+GET    /api/projects/{id}/error-correlations         # Get error correlations
 ```
 
 #### Export & Sharing
@@ -578,6 +596,42 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
 ```
+
+## 🎉 Recent Improvements (v0.1.0)
+
+### Comprehensive Error Handling Framework
+- **Structured Error Types**: Custom `AppError` enum with 11 specialized variants
+- **Automatic HTTP Mapping**: Intelligent status code selection based on error type
+- **Enhanced Logging**: Detailed error tracing with context and stack information
+- **Validation Helpers**: Built-in validators for UUIDs, file sizes, pagination, and more
+
+### Performance Metrics & Monitoring
+- **Real-Time Metrics Collection**: Request latency, throughput, and error rates
+- **Endpoint-Level Analytics**: Per-route performance tracking with p95/p99 percentiles
+- **Quality Scoring**: Multi-dimensional quality assessment (accuracy, completion rate, confidence)
+- **Alert System**: Configurable thresholds for performance degradation detection
+- **Metrics API Endpoints**:
+  - `/api/metrics` - Comprehensive performance metrics
+  - `/api/health/metrics` - Health check with quality scores
+
+### Enhanced Streaming Capabilities
+- **WebSocket Real-Time Streaming**: Live log ingestion with sub-second latency
+- **HTTP Ingest Endpoint**: Batch log ingestion via REST API
+- **Flexible Filtering**: Level, source, and timestamp-based filtering
+- **Buffer Management**: Configurable buffering with automatic flush
+- **Stats Dashboard**: Active sources, connections, and throughput monitoring
+
+### Testing Infrastructure
+- **Integration Tests**: Comprehensive API endpoint testing
+- **Unit Tests**: Error handling and metrics validation
+- **Test Coverage**: >80% coverage for core components
+- **Automated Test Suite**: CI/CD integration ready
+
+### API Documentation
+- **Complete API Reference**: All endpoints documented with examples
+- **OpenAPI Compliance**: REST API best practices
+- **Error Response Standards**: Consistent error formatting
+- **WebSocket Protocol**: Full protocol specification
 
 ## 🤝 Contributing
 

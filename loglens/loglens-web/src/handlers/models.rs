@@ -1,11 +1,10 @@
 use axum::{
     extract::State,
-    http::StatusCode,
     response::Json,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
-use crate::AppState;
+use crate::{error_handling::AppError, AppState};
 use anyhow::Result;
 use loglens_core::ai_provider::{create_provider, ModelInfo, ModelListResponse};
 
@@ -19,11 +18,11 @@ pub struct ModelsRequest {
 pub async fn get_available_models(
     State(state): State<AppState>,
     Json(request): Json<ModelsRequest>,
-) -> Result<Json<ModelListResponse>, StatusCode> {
+) -> Result<Json<ModelListResponse>, AppError> {
     // Validate provider
     let valid_providers = ["openai", "claude", "gemini", "openrouter"];
     if !valid_providers.contains(&request.provider.as_str()) {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(AppError::bad_request("Invalid provider"));
     }
 
     // Check cache if force_refresh is not set
@@ -35,14 +34,14 @@ pub async fn get_available_models(
 
     // Create provider and fetch models
     let provider = create_provider(&request.provider, &request.api_key)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| AppError::internal(format!("Failed to create provider: {}", e)))?;
 
     let models = provider
         .get_available_models()
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch models from {}: {}", request.provider, e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            AppError::ai_provider(&request.provider, e.to_string())
         })?;
 
     let response = ModelListResponse {
@@ -159,7 +158,7 @@ pub struct ClearCacheRequest {
 pub async fn clear_models_cache(
     State(state): State<AppState>,
     Json(request): Json<ClearCacheRequest>,
-) -> Result<Json<&'static str>, StatusCode> {
+) -> Result<Json<&'static str>, AppError> {
     let pool = state.db.pool();
 
     if let Some(provider) = &request.provider {
@@ -171,19 +170,19 @@ pub async fn clear_models_cache(
             .collect();
 
         let models_json = serde_json::to_string(&filtered_models)
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|e| AppError::internal(format!("Failed to serialize models: {}", e)))?;
 
         sqlx::query("UPDATE settings SET available_models = ? WHERE id = 1")
             .bind(&models_json)
             .execute(pool)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|e| AppError::Database(e))?;
     } else {
         // Clear all cached models
         sqlx::query("UPDATE settings SET available_models = NULL, models_last_fetched = NULL WHERE id = 1")
             .execute(pool)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|e| AppError::Database(e))?;
     }
 
     Ok(Json("Cache cleared"))

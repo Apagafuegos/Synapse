@@ -49,16 +49,16 @@ const statusConfig = {
 };
 
 const providerIcons = {
-  openrouter: '🤖',
-  openai: '🔵',
-  claude: '🔷',
-  gemini: '🔶'
+  openrouter: 'AI',
+  openai: 'AI',
+  claude: 'AI',
+  gemini: 'AI'
 };
 
 export function AnalysisHeader({ analysis }: AnalysisHeaderProps) {
   const statusConfigData = statusConfig[analysis.status];
   const StatusIcon = statusConfigData.icon;
-  const providerIcon = providerIcons[analysis.ai_provider.toLowerCase() as keyof typeof providerIcons] || '🔍';
+  const providerIcon = providerIcons[analysis.ai_provider.toLowerCase() as keyof typeof providerIcons] || 'AI';
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 mb-6">

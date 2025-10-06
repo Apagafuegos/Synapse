@@ -1,23 +1,21 @@
 use axum::extract::ws::{Message, WebSocket};
 use axum::{
     extract::{Path, Query, State, WebSocketUpgrade},
-    http::StatusCode,
     response::Response,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use loglens_core::{
-    analyzer::Analyzer, create_provider, filter_logs_by_level, parse_log_lines, slim_logs,
+    analyzer::Analyzer, create_provider_with_model, filter_logs_by_level, parse_log_lines, slim_logs,
     AnalysisResponse,
 };
 use serde::{Deserialize, Serialize};
-use std::{sync::Arc, time::Instant};
+use std::time::Instant;
 use tokio::sync::broadcast;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 use serde_json::json;
 use tokio::time::Duration;
 
-use crate::{models::*, AppState};
+use crate::{error_handling::AppError, models::*, AppState};
 
 /// WebSocket handler for real-time log analysis
 /// Provides live progress updates, cancellation support, and streaming results
@@ -26,24 +24,32 @@ pub async fn websocket_analysis_handler(
     State(state): State<AppState>,
     Path((project_id, file_id)): Path<(String, String)>,
     Query(params): Query<AnalysisWebSocketParams>,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     // Validate project and file exist
     let _project = sqlx::query_as::<_, Project>(
         "SELECT id, name, description, created_at, updated_at FROM projects WHERE id = ?",
     )
     .bind(&project_id)
-    .fetch_one(state.db.pool())
+    .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| StatusCode::NOT_FOUND)?;
+    .map_err(|e| {
+        tracing::error!("Failed to fetch project {}: {}", project_id, e);
+        AppError::Database(e)
+    })?
+    .ok_or_else(|| AppError::not_found(format!("Project {} not found", project_id)))?;
 
     let log_file = sqlx::query_as::<_, LogFile>(
         "SELECT id, project_id, filename, file_size, created_at FROM log_files WHERE id = ? AND project_id = ?",
     )
     .bind(&file_id)
     .bind(&project_id)
-    .fetch_one(state.db.pool())
+    .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| StatusCode::NOT_FOUND)?;
+    .map_err(|e| {
+        tracing::error!("Failed to fetch log file {}: {}", file_id, e);
+        AppError::Database(e)
+    })?
+    .ok_or_else(|| AppError::not_found(format!("Log file {} not found", file_id)))?;
 
     Ok(ws.on_upgrade(move |socket| websocket_analysis_task(socket, state, log_file, params)))
 }
@@ -54,6 +60,7 @@ pub struct AnalysisWebSocketParams {
     pub provider: String,
     pub api_key: Option<String>,
     pub user_context: Option<String>,
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -191,7 +198,7 @@ async fn perform_streaming_analysis_split(
     state: &AppState,
     log_file: &LogFile,
     params: &AnalysisWebSocketParams,
-    analysis_id: &str,
+    _analysis_id: &str,
     start_time: Instant,
     sender: &mut futures::stream::SplitSink<WebSocket, Message>,
     cancel_rx: &mut broadcast::Receiver<String>,
@@ -310,17 +317,31 @@ async fn perform_streaming_analysis_split(
 
     let ai_start_time = Instant::now();
 
-    // Get API key
-    let api_key = match &params.api_key {
-        Some(key) => key.clone(),
-        None => state
-            .config
-            .get_api_key(&params.provider)
-            .ok_or_else(|| anyhow::anyhow!("API key required for provider {}", params.provider))?,
+    // Get API key and model from params or database settings
+    let (api_key, model) = match (&params.api_key, &params.model) {
+        (Some(key), Some(model)) => (key.clone(), Some(model.clone())),
+        _ => {
+            // Fetch from database settings
+            match sqlx::query!("SELECT api_key, selected_model FROM settings LIMIT 1")
+                .fetch_optional(state.db.pool())
+                .await
+            {
+                Ok(Some(settings)) if !settings.api_key.is_empty() => {
+                    let api_key = params.api_key.clone().unwrap_or(settings.api_key);
+                    let model = params.model.clone().or(settings.selected_model);
+                    (api_key, model)
+                },
+                _ => {
+                    let api_key = params.api_key.clone()
+                        .ok_or_else(|| anyhow::anyhow!("API key required for provider {}", params.provider))?;
+                    (api_key, params.model.clone())
+                }
+            }
+        }
     };
 
     // Create provider and analyzer
-    let provider = create_provider(&params.provider, &api_key)?;
+    let provider = create_provider_with_model(&params.provider, &api_key, model)?;
     let mut analyzer = Analyzer::new(provider);
 
     // Check for cancellation before expensive AI call
@@ -355,28 +376,6 @@ async fn perform_streaming_analysis_split(
     };
 
     Ok(AnalysisData { analysis, stats })
-}
-
-async fn send_progress(
-    socket: &mut WebSocket,
-    stage: &str,
-    progress: f32,
-    message: &str,
-    elapsed_ms: u64,
-) -> Result<(), anyhow::Error> {
-    let progress_msg = WebSocketMessage::Progress {
-        stage: stage.to_string(),
-        progress,
-        message: message.to_string(),
-        elapsed_ms,
-    };
-
-    socket
-        .send(Message::Text(serde_json::to_string(&progress_msg)?))
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to send progress: {}", e))?;
-
-    Ok(())
 }
 
 async fn send_progress_split(
@@ -416,18 +415,6 @@ async fn send_cancelled_split(
         .await;
 }
 
-async fn send_cancelled(socket: Arc<RwLock<WebSocket>>, reason: String, start_time: Instant) {
-    let cancel_msg = WebSocketMessage::Cancelled {
-        reason,
-        elapsed_ms: start_time.elapsed().as_millis() as u64,
-    };
-
-    let mut socket_guard = socket.write().await;
-    let _ = socket_guard
-        .send(Message::Text(serde_json::to_string(&cancel_msg).unwrap()))
-        .await;
-}
-
 async fn store_analysis_result(
     state: &AppState,
     log_file: &LogFile,
@@ -435,7 +422,7 @@ async fn store_analysis_result(
     analysis_data: &AnalysisData,
 ) -> Result<(), anyhow::Error> {
     let analysis_json = serde_json::to_string(&analysis_data.analysis)?;
-    let stats_json = serde_json::to_string(&analysis_data.stats)?;
+    let _stats_json = serde_json::to_string(&analysis_data.stats)?;
 
     sqlx::query!(
         r#"
@@ -464,15 +451,19 @@ pub async fn websocket_monitor_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
     Path(analysis_id): Path<String>,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     // Validate analysis exists
     let _analysis = sqlx::query_as::<_, Analysis>(
         "SELECT id, project_id, log_file_id, status, created_at FROM analyses WHERE id = ?",
     )
     .bind(&analysis_id)
-    .fetch_one(state.db.pool())
+    .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| StatusCode::NOT_FOUND)?;
+    .map_err(|e| {
+        tracing::error!("Failed to fetch analysis {}: {}", analysis_id, e);
+        AppError::Database(e)
+    })?
+    .ok_or_else(|| AppError::not_found(format!("Analysis {} not found", analysis_id)))?;
 
     Ok(ws.on_upgrade(move |socket| websocket_monitor_task(socket, state, analysis_id)))
 }
@@ -573,7 +564,7 @@ impl crate::config::WebConfig {
 pub async fn status_ws_handler(
     ws: WebSocketUpgrade,
     State(_state): State<AppState>,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     Ok(ws.on_upgrade(handle_status_ws))
 }
 

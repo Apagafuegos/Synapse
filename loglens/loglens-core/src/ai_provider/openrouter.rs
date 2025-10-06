@@ -54,24 +54,20 @@ pub struct OpenRouterProvider {
     client: Client,
     #[allow(dead_code)]
     api_key: String,
-    model: String,
+    model: Option<String>,
 }
 
 impl OpenRouterProvider {
-    pub fn new(api_key: String) -> Self {
+    pub fn new(api_key: String, model: Option<String>) -> Self {
+        tracing::info!("OpenRouterProvider::new called with model: {:?}", model);
         Self {
             client: Client::builder()
                 .timeout(Duration::from_secs(30))
                 .build()
                 .expect("Failed to create HTTP client"),
             api_key,
-            model: "x-ai/grok-4-fast:free".to_string(), // Default model
+            model,
         }
-    }
-
-    pub fn with_model(mut self, model: String) -> Self {
-        self.model = model;
-        self
     }
 
     fn create_fallback_response(content: &str, _json_error: serde_json::Error) -> AnalysisResponse {
@@ -195,13 +191,19 @@ struct OpenRouterModelData {
 #[derive(Debug, Deserialize)]
 struct OpenRouterPricing {
     prompt: String,
+    #[allow(dead_code)]
     completion: String,
 }
 
 #[async_trait::async_trait]
 impl AIProvider for OpenRouterProvider {
     async fn analyze(&self, request: AnalysisRequest) -> Result<AnalysisResponse, AIError> {
-        info!("Starting OpenRouter analysis with model: {}", self.model);
+        let model = self.model.as_ref()
+            .ok_or_else(|| AIError::InvalidResponse(
+                "Model must be specified for OpenRouter analysis. Please select a model in settings or provide it in the request.".to_string()
+            ))?;
+
+        info!("Starting OpenRouter analysis with model: {}", model);
         debug!("Analysis focus: {:?}", request.analysis_focus);
         
         use crate::ai_provider::prompts::SystemPromptGenerator;
@@ -230,7 +232,7 @@ impl AIProvider for OpenRouterProvider {
         ];
 
         let openrouter_request = OpenRouterRequest {
-            model: self.model.clone(),
+            model: model.clone(),
             messages,
             temperature: 0.1, // Low temperature for factual responses
             max_tokens: 2000,
@@ -387,16 +389,22 @@ mod tests {
 
     #[test]
     fn test_openrouter_provider_creation() {
-        let provider = OpenRouterProvider::new("test_key".to_string());
+        let provider = OpenRouterProvider::new("test_key".to_string(), Some("test-model".to_string()));
         assert_eq!(provider.api_key, "test_key");
-        assert_eq!(provider.model, "deepseek/deepseek-chat-v3.1:free");
+        assert_eq!(provider.model, Some("test-model".to_string()));
     }
 
     #[test]
-    fn test_openrouter_provider_with_model() {
-        let provider =
-            OpenRouterProvider::new("test_key".to_string()).with_model("gpt-4".to_string());
-        assert_eq!(provider.model, "gpt-4");
+    fn test_openrouter_provider_with_custom_model() {
+        let provider = OpenRouterProvider::new("test_key".to_string(), Some("gpt-4".to_string()));
+        assert_eq!(provider.model, Some("gpt-4".to_string()));
+    }
+
+    #[test]
+    fn test_openrouter_provider_without_model() {
+        let provider = OpenRouterProvider::new("test_key".to_string(), None);
+        assert_eq!(provider.api_key, "test_key");
+        assert_eq!(provider.model, None);
     }
 
     #[test]

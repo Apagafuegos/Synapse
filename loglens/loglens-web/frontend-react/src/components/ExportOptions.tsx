@@ -101,35 +101,35 @@ export function ExportOptions({ analysis, loading }: ExportOptionsProps) {
       name: 'JSON',
       description: 'Machine-readable format for further processing',
       extension: 'json',
-      icon: '📊'
+      icon: 'DATA'
     },
     {
       key: 'html',
       name: 'HTML Report',
       description: 'Formatted report with visualizations',
       extension: 'html',
-      icon: '🌐'
+      icon: 'WEB'
     },
     {
       key: 'md',
       name: 'Markdown',
       description: 'Documentation-friendly format',
       extension: 'md',
-      icon: '📝'
+      icon: 'DOC'
     },
     {
       key: 'csv',
       name: 'CSV Data',
       description: 'Spreadsheet-compatible data format',
       extension: 'csv',
-      icon: '📋'
+      icon: 'SHEET'
     },
     {
       key: 'pdf',
       name: 'PDF Report',
       description: 'Print-ready formatted document',
       extension: 'pdf',
-      icon: '📄'
+      icon: 'DOC'
     }
   ];
 

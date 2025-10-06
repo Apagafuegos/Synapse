@@ -147,11 +147,8 @@ pub fn create_provider_with_model(provider_name: &str, api_key: &str, model: Opt
     info!("Creating AI provider: {} with model: {:?}", provider_name, model);
     match provider_name.to_lowercase().as_str() {
         "openrouter" => {
-            debug!("Initializing OpenRouter provider");
-            let mut provider = OpenRouterProvider::new(api_key.to_string());
-            if let Some(model_id) = model {
-                provider = provider.with_model(model_id);
-            }
+            debug!("Initializing OpenRouter provider with model: {:?}", model);
+            let provider = OpenRouterProvider::new(api_key.to_string(), model);
             Ok(Box::new(provider))
         }
         "openai" => {

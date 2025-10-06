@@ -41,57 +41,6 @@ impl Database {
         Ok(())
     }
 
-    async fn create_tables(&self) -> Result<()> {
-        let pool = self.pool();
-        
-        // Create projects table
-        sqlx::query(
-            "CREATE TABLE IF NOT EXISTS projects (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )"
-        ).execute(pool).await?;
-
-        // Create log_files table
-        sqlx::query(
-            "CREATE TABLE IF NOT EXISTS log_files (
-                id TEXT PRIMARY KEY,
-                project_id TEXT NOT NULL,
-                filename TEXT NOT NULL,
-                file_size INTEGER NOT NULL,
-                line_count INTEGER NOT NULL,
-                upload_path TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (project_id) REFERENCES projects(id)
-            )"
-        ).execute(pool).await?;
-
-        // Create analyses table
-        sqlx::query(
-            "CREATE TABLE IF NOT EXISTS analyses (
-                id TEXT PRIMARY KEY,
-                project_id TEXT NOT NULL,
-                log_file_id TEXT,
-                analysis_type TEXT NOT NULL,
-                provider TEXT NOT NULL,
-                level_filter TEXT NOT NULL,
-                status INTEGER NOT NULL DEFAULT 0,
-                result TEXT,
-                error_message TEXT,
-                started_at TEXT NOT NULL,
-                completed_at TEXT,
-                FOREIGN KEY (project_id) REFERENCES projects(id),
-                FOREIGN KEY (log_file_id) REFERENCES log_files(id)
-            )"
-        ).execute(pool).await?;
-
-        tracing::info!("Database tables created successfully");
-        Ok(())
-    }
-
     pub fn pool(&self) -> &Pool<Sqlite> {
         &self.pool
     }

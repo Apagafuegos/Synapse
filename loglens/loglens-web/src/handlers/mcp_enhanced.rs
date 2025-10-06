@@ -1,11 +1,10 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     response::Json,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{models::*, AppState};
+use crate::{error_handling::AppError, models::*, AppState};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MCPTicketRequest {
@@ -50,7 +49,7 @@ pub async fn generate_mcp_ticket(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
     Json(req): Json<MCPTicketRequest>,
-) -> Result<Json<MCPTicketResponse>, StatusCode> {
+) -> Result<Json<MCPTicketResponse>, AppError> {
     // Verify analysis exists and belongs to project
     let analysis = sqlx::query_as::<_, Analysis>(
         "SELECT id, project_id, log_file_id, analysis_type, provider, level_filter, status, result, error_message, started_at, completed_at
@@ -60,8 +59,11 @@ pub async fn generate_mcp_ticket(
     .bind(&project_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .map_err(|e| {
+        tracing::error!("Failed to fetch analysis {} for MCP ticket: {}", req.analysis_id, e);
+        AppError::Database(e)
+    })?
+    .ok_or_else(|| AppError::not_found(format!("Analysis {} not found", req.analysis_id)))?;
 
     // Generate ticket ID with project prefix and timestamp
     let timestamp = chrono::Utc::now().format("%Y%m%d");
@@ -106,13 +108,13 @@ pub async fn generate_mcp_ticket(
     let solution_json = serde_json::to_string(&solution_data)
         .map_err(|e| {
             tracing::error!("Failed to serialize MCP solution data: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            AppError::internal(format!("Failed to serialize solution data: {}", e))
         })?;
-    
+
     let tags_json = serde_json::to_string(&vec!["mcp", "ticket", "error"])
         .map_err(|e| {
             tracing::error!("Failed to serialize MCP tags: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            AppError::internal(format!("Failed to serialize tags: {}", e))
         })?;
 
     let entry_id = uuid::Uuid::new_v4().to_string();
@@ -136,7 +138,10 @@ pub async fn generate_mcp_ticket(
     )
     .execute(state.db.pool())
     .await
-    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e: sqlx::Error| {
+        tracing::error!("Failed to insert MCP ticket: {}", e);
+        AppError::Database(e)
+    })?;
 
     Ok(Json(response))
 }
@@ -146,7 +151,7 @@ pub async fn get_mcp_context(
     State(state): State<AppState>,
     Path((project_id, analysis_id)): Path<(String, String)>,
     Query(params): Query<MCPContextRequest>,
-) -> Result<Json<MCPContextResponse>, StatusCode> {
+) -> Result<Json<MCPContextResponse>, AppError> {
     // Verify analysis exists
     let analysis = sqlx::query_as::<_, Analysis>(
         "SELECT id, project_id, log_file_id, analysis_type, provider, level_filter, status, result, error_message, started_at, completed_at
@@ -156,8 +161,11 @@ pub async fn get_mcp_context(
     .bind(&project_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .map_err(|e| {
+        tracing::error!("Failed to fetch analysis {} for MCP context: {}", analysis_id, e);
+        AppError::Database(e)
+    })?
+    .ok_or_else(|| AppError::not_found(format!("Analysis {} not found", analysis_id)))?;
 
     let mut context_payload = String::new();
 
@@ -250,7 +258,7 @@ pub async fn get_mcp_context(
             }
         }
         _ => {
-            return Err(StatusCode::BAD_REQUEST);
+            return Err(AppError::bad_request("Invalid detail level. Must be: minimal, standard, or full"));
         }
     }
 
@@ -269,7 +277,7 @@ pub async fn get_mcp_context(
 pub async fn get_mcp_tickets(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
-) -> Result<Json<Vec<MCPTicketResponse>>, StatusCode> {
+) -> Result<Json<Vec<MCPTicketResponse>>, AppError> {
     let tickets = sqlx::query_as::<_, KnowledgeBaseEntry>(
         "SELECT id, project_id, title, problem_description, solution, tags, severity, is_public, usage_count, created_at, updated_at
          FROM knowledge_base
@@ -279,7 +287,10 @@ pub async fn get_mcp_tickets(
     .bind(&project_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| {
+        tracing::error!("Failed to fetch MCP tickets for project {}: {}", project_id, e);
+        AppError::Database(e)
+    })?;
 
     let mut ticket_responses = Vec::new();
 

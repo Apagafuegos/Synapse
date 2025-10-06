@@ -1,6 +1,5 @@
 use axum::{
     extract::{Multipart, Path, State},
-    http::StatusCode,
     response::Json,
 };
 use bytes::Bytes;
@@ -8,7 +7,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 use tokio::fs;
 
-use crate::{models::*, validation::Validator, AppState};
+use crate::{error_handling::AppError, models::*, validation::Validator, AppState};
 
 /// Helper function to process file upload with transaction support
 async fn process_file_upload(
@@ -17,11 +16,11 @@ async fn process_file_upload(
     sanitized_filename: String,
     data: Bytes,
     file_path: PathBuf,
-) -> Result<LogFile, StatusCode> {
+) -> Result<LogFile, AppError> {
     // Start a transaction to ensure atomicity
     let mut tx = state.db.pool().begin().await.map_err(|e: sqlx::Error| {
         tracing::error!("Failed to start transaction for file upload: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        AppError::Database(e)
     })?;
 
     // Write file to disk asynchronously
@@ -30,7 +29,7 @@ async fn process_file_upload(
         if let Err(rollback_err) = tx.rollback().await {
             tracing::error!("Failed to rollback transaction: {}", rollback_err);
         }
-        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        return Err(AppError::file_processing(format!("Failed to write file: {}", e)));
     }
 
     // Calculate actual line count from the uploaded data
@@ -68,7 +67,7 @@ async fn process_file_upload(
         if let Err(file_err) = tokio::fs::remove_file(&file_path).await {
             tracing::error!("Failed to remove file after DB error: {}", file_err);
         }
-        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        return Err(AppError::Database(e));
     }
 
     // Commit only if everything succeeded
@@ -78,7 +77,7 @@ async fn process_file_upload(
         if let Err(file_err) = tokio::fs::remove_file(&file_path).await {
             tracing::error!("Failed to remove file after commit error: {}", file_err);
         }
-        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        return Err(AppError::Database(e));
     }
 
     Ok(log_file)
@@ -88,55 +87,52 @@ pub async fn upload_log_file(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
     mut multipart: Multipart,
-) -> Result<Json<LogFile>, StatusCode> {
+) -> Result<Json<LogFile>, AppError> {
     // Validate project ID format
     Validator::validate_uuid(&project_id).map_err(|e: crate::validation::ValidationError| {
         tracing::warn!("Invalid project ID: {}", e.to_message());
-        StatusCode::BAD_REQUEST
+        AppError::from(e)
     })?;
 
     // Verify project exists
     let _project = sqlx::query!("SELECT id FROM projects WHERE id = ?", project_id)
         .fetch_optional(state.db.pool())
         .await
-        .map_err(|e: sqlx::Error| {
-            tracing::error!("Failed to verify project {}: {}", project_id, e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .map_err(AppError::Database)?
+        .ok_or_else(|| AppError::not_found(format!("Project {} not found", project_id)))?;
 
     // Create uploads directory if it doesn't exist
     let upload_dir = PathBuf::from("uploads").join(&project_id);
     fs::create_dir_all(&upload_dir)
         .await
-        .map_err(|_: std::io::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| AppError::file_processing(format!("Failed to create upload directory: {}", e)))?;
 
     let mut uploaded_file: Option<LogFile> = None;
 
     while let Some(field) = multipart
         .next_field()
         .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?
+        .map_err(|e| AppError::bad_request(format!("Multipart error: {}", e)))?
     {
         let name = field.name().unwrap_or("").to_string();
 
         if name == "file" {
             let filename = field
                 .file_name()
-                .ok_or(StatusCode::BAD_REQUEST)?
+                .ok_or_else(|| AppError::bad_request("No filename provided"))?
                 .to_string();
 
             tracing::info!("Processing uploaded file: '{}'", filename);
 
             let data = field.bytes().await.map_err(|e: axum::extract::multipart::MultipartError| {
                 tracing::error!("Failed to read file bytes: {}", e);
-                StatusCode::BAD_REQUEST
+                AppError::bad_request(format!("Failed to read file: {}", e))
             })?;
 
             // Check for empty file
             if data.is_empty() {
                 tracing::warn!("Empty file uploaded: {}", filename);
-                return Err(StatusCode::BAD_REQUEST);
+                return Err(AppError::validation("File cannot be empty"));
             }
 
             tracing::info!("File size: {} bytes, validating...", data.len());
@@ -149,7 +145,7 @@ pub async fn upload_log_file(
             )
             .map_err(|e: crate::validation::ValidationError| {
                 tracing::error!("File upload validation failed for '{}': {}", filename, e.to_message());
-                e.to_status_code()
+                AppError::from(e)
             })?;
 
             // Generate unique filename using sanitized filename
@@ -176,13 +172,13 @@ pub async fn upload_log_file(
         }
     }
 
-    uploaded_file.map(Json).ok_or(StatusCode::BAD_REQUEST)
+    uploaded_file.map(Json).ok_or_else(|| AppError::bad_request("No file uploaded"))
 }
 
 pub async fn list_log_files(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
-) -> Result<Json<Vec<LogFile>>, StatusCode> {
+) -> Result<Json<Vec<LogFile>>, AppError> {
     let log_files = sqlx::query_as::<_, LogFile>(
         "SELECT id, project_id, filename, file_size, line_count, upload_path, created_at
          FROM log_files WHERE project_id = ? ORDER BY created_at DESC",
@@ -190,7 +186,7 @@ pub async fn list_log_files(
     .bind(&project_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(AppError::Database)?;
 
     Ok(Json(log_files))
 }
@@ -198,7 +194,7 @@ pub async fn list_log_files(
 pub async fn delete_log_file(
     State(state): State<AppState>,
     Path((project_id, file_id)): Path<(String, String)>,
-) -> Result<Json<Value>, StatusCode> {
+) -> Result<Json<Value>, AppError> {
     // Get file info first
     let log_file = sqlx::query_as::<_, LogFile>(
         "SELECT id, project_id, filename, file_size, line_count, upload_path, created_at
@@ -210,9 +206,9 @@ pub async fn delete_log_file(
     .await
     .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to fetch log file {}: {}", file_id, e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        AppError::Database(e)
     })?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .ok_or_else(|| AppError::not_found(format!("Log file {} not found", file_id)))?;
 
     // Check for active analyses using this file
     let active_analyses = sqlx::query!(
@@ -227,7 +223,7 @@ pub async fn delete_log_file(
             file_id,
             e
         );
-        StatusCode::INTERNAL_SERVER_ERROR
+        AppError::Database(e)
     })?;
 
     if active_analyses.count > 0 {
@@ -236,7 +232,9 @@ pub async fn delete_log_file(
             file_id,
             active_analyses.count
         );
-        return Err(StatusCode::CONFLICT);
+        return Err(AppError::bad_request(
+            format!("Cannot delete file with {} active analyses", active_analyses.count)
+        ));
     }
 
     // Check for any completed analyses - warn but allow deletion
@@ -248,7 +246,7 @@ pub async fn delete_log_file(
     .await
     .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to check all analyses for file {}: {}", file_id, e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        AppError::Database(e)
     })?;
 
     if completed_analyses.count > 0 {
@@ -262,7 +260,7 @@ pub async fn delete_log_file(
     // Start a transaction to ensure atomicity
     let mut tx = state.db.pool().begin().await.map_err(|e: sqlx::Error| {
         tracing::error!("Failed to start transaction for file deletion: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        AppError::Database(e)
     })?;
 
     // Delete from database first
@@ -271,18 +269,18 @@ pub async fn delete_log_file(
         .await
         .map_err(|e: sqlx::Error| {
             tracing::error!("Failed to delete log file {} from database: {}", file_id, e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            AppError::Database(e)
         })?;
 
     if result.rows_affected() == 0 {
         tx.rollback().await.ok();
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::not_found(format!("Log file {} not found", file_id)));
     }
 
     // Commit the transaction
     tx.commit().await.map_err(|e: sqlx::Error| {
         tracing::error!("Failed to commit file deletion transaction: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        AppError::Database(e)
     })?;
 
     // Only delete file from filesystem after successful database deletion

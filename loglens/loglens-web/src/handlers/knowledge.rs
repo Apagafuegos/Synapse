@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::{models::*, AppState};
+use crate::{error_handling::AppError, models::*, AppState};
 
 #[derive(Deserialize)]
 pub struct KnowledgeBaseQuery {
@@ -61,11 +61,11 @@ pub async fn create_knowledge_entry(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
     Json(req): Json<CreateKnowledgeBaseRequest>,
-) -> Result<Json<KnowledgeBaseEntry>, StatusCode> {
+) -> Result<Json<KnowledgeBaseEntry>, AppError> {
     // Validate the request
     if let Err(error_msg) = req.validate() {
         tracing::warn!("Invalid knowledge base entry request: {}", error_msg);
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(AppError::bad_request("Invalid request"));
     }
 
     let entry = KnowledgeBaseEntry::new(
@@ -74,6 +74,7 @@ pub async fn create_knowledge_entry(
         req.problem_description,
         req.solution,
         req.severity.unwrap_or_else(|| "medium".to_string()),
+        req.is_public.unwrap_or(false),
     );
 
     let tags_json = match req.tags {
@@ -81,7 +82,7 @@ pub async fn create_knowledge_entry(
             Some(serde_json::to_string(&tags)
                 .map_err(|e| {
                     tracing::error!("Failed to serialize knowledge base tags: {}", e);
-                    StatusCode::INTERNAL_SERVER_ERROR
+                    AppError::internal(format!("Failed to serialize tags: {}", e))
                 })?)
         }
         None => None
@@ -106,7 +107,7 @@ pub async fn create_knowledge_entry(
     .await
     .map_err(|e: sqlx::Error| {
         tracing::error!("Failed to create knowledge base entry: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        AppError::Database(e)
     })?;
 
     Ok(Json(entry))
@@ -116,7 +117,7 @@ pub async fn get_knowledge_entries(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
     Query(params): Query<KnowledgeBaseQuery>,
-) -> Result<Json<Vec<KnowledgeBaseEntry>>, StatusCode> {
+) -> Result<Json<Vec<KnowledgeBaseEntry>>, AppError> {
     let limit = params.limit.unwrap_or(50).min(100);
     let offset = params.offset.unwrap_or(0);
 
@@ -136,7 +137,7 @@ pub async fn get_knowledge_entries(
         .bind(offset)
         .fetch_all(state.db.pool())
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| { tracing::error!("Error: {}", e); AppError::internal(format!("{}", e)) })?;
 
         return Ok(Json(entries));
     }
@@ -152,7 +153,7 @@ pub async fn get_knowledge_entries(
     .bind(offset)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| { tracing::error!("Error: {}", e); AppError::internal(format!("{}", e)) })?;
 
     Ok(Json(entries))
 }
@@ -160,7 +161,7 @@ pub async fn get_knowledge_entries(
 pub async fn get_knowledge_entry(
     State(state): State<AppState>,
     Path((project_id, entry_id)): Path<(String, String)>,
-) -> Result<Json<KnowledgeBaseEntry>, StatusCode> {
+) -> Result<Json<KnowledgeBaseEntry>, AppError> {
     let entry = sqlx::query_as::<_, KnowledgeBaseEntry>(
         "SELECT id, project_id, title, problem_description, solution, tags, severity, is_public, usage_count, created_at, updated_at
          FROM knowledge_base WHERE id = $1 AND project_id = $2"
@@ -169,8 +170,8 @@ pub async fn get_knowledge_entry(
     .bind(&project_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .map_err(|e| { tracing::error!("Error: {}", e); AppError::internal(format!("{}", e)) })?
+    .ok_or_else(|| AppError::not_found("Resource not found"))?;
 
     // Increment usage count
     sqlx::query!(
@@ -179,9 +180,35 @@ pub async fn get_knowledge_entry(
     )
     .execute(state.db.pool())
     .await
-    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e: sqlx::Error| { tracing::error!("Database error: {}", e); AppError::Database(e) })?;
 
     Ok(Json(entry))
+}
+
+/// Get public knowledge base entries (shared across all projects)
+pub async fn get_public_knowledge(
+    State(state): State<AppState>,
+    Query(params): Query<KnowledgeBaseQuery>,
+) -> Result<Json<Vec<KnowledgeBaseEntry>>, AppError> {
+    let limit = params.limit.unwrap_or(50).min(100);
+
+    let entries = sqlx::query_as::<_, KnowledgeBaseEntry>(
+        "SELECT id, project_id, title, problem_description, solution, tags, severity, is_public, usage_count, created_at, updated_at
+         FROM knowledge_base
+         WHERE is_public = true
+         ORDER BY usage_count DESC, created_at DESC
+         LIMIT ?"
+    )
+    .bind(limit)
+    .fetch_all(state.db.pool())
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch public knowledge entries: {}", e);
+        AppError::Database(e)
+    })?;
+
+    tracing::debug!("Retrieved {} public knowledge entries", entries.len());
+    Ok(Json(entries))
 }
 
 // Error Pattern Endpoints
@@ -189,7 +216,7 @@ pub async fn get_error_patterns(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
     Query(params): Query<PatternQuery>,
-) -> Result<Json<Vec<ErrorPattern>>, StatusCode> {
+) -> Result<Json<Vec<ErrorPattern>>, AppError> {
     let limit = params.limit.unwrap_or(50).min(100);
 
     if let Some(category) = &params.category {
@@ -204,7 +231,7 @@ pub async fn get_error_patterns(
         .bind(limit)
         .fetch_all(state.db.pool())
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| { tracing::error!("Error: {}", e); AppError::internal(format!("{}", e)) })?;
 
         return Ok(Json(patterns));
     }
@@ -221,7 +248,7 @@ pub async fn get_error_patterns(
         .bind(limit)
         .fetch_all(state.db.pool())
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| { tracing::error!("Error: {}", e); AppError::internal(format!("{}", e)) })?;
 
         return Ok(Json(patterns));
     }
@@ -236,7 +263,7 @@ pub async fn get_error_patterns(
     .bind(limit)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| { tracing::error!("Error: {}", e); AppError::internal(format!("{}", e)) })?;
 
     Ok(Json(patterns))
 }
@@ -244,17 +271,17 @@ pub async fn get_error_patterns(
 pub async fn update_pattern_frequency(
     State(state): State<AppState>,
     Path(pattern_id): Path<String>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, AppError> {
     let result = sqlx::query!(
         "UPDATE error_patterns SET frequency = frequency + 1, last_seen = CURRENT_TIMESTAMP WHERE id = $1",
         pattern_id
     )
     .execute(state.db.pool())
     .await
-    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e: sqlx::Error| { tracing::error!("Database error: {}", e); AppError::Database(e) })?;
 
     if result.rows_affected() == 0 {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(AppError::not_found("Pattern not found"));
     }
 
     Ok(StatusCode::OK)
@@ -265,7 +292,7 @@ pub async fn get_error_correlations(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
     Path(analysis_id): Path<String>,
-) -> Result<Json<Vec<ErrorCorrelation>>, StatusCode> {
+) -> Result<Json<Vec<ErrorCorrelation>>, AppError> {
     let correlations = sqlx::query_as::<_, ErrorCorrelation>(
         "SELECT id, project_id, primary_error_id, correlated_error_id, correlation_strength, correlation_type, created_at
          FROM error_correlations 
@@ -276,7 +303,7 @@ pub async fn get_error_correlations(
     .bind(&analysis_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| { tracing::error!("Error: {}", e); AppError::internal(format!("{}", e)) })?;
 
     Ok(Json(correlations))
 }
@@ -285,7 +312,7 @@ pub async fn get_error_correlations(
 pub async fn get_performance_metrics(
     State(state): State<AppState>,
     Path(analysis_id): Path<String>,
-) -> Result<Json<Vec<PerformanceMetric>>, StatusCode> {
+) -> Result<Json<Vec<PerformanceMetric>>, AppError> {
     let metrics = sqlx::query_as::<_, PerformanceMetric>(
         "SELECT id, analysis_id, metric_name, metric_value, unit, threshold_value, is_bottleneck, created_at
          FROM performance_metrics 
@@ -295,7 +322,7 @@ pub async fn get_performance_metrics(
     .bind(&analysis_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| { tracing::error!("Error: {}", e); AppError::internal(format!("{}", e)) })?;
 
     Ok(Json(metrics))
 }
@@ -304,7 +331,7 @@ pub async fn create_performance_metric(
     State(state): State<AppState>,
     Path(_analysis_id): Path<String>,
     Json(metric): Json<PerformanceMetric>,
-) -> Result<Json<PerformanceMetric>, StatusCode> {
+) -> Result<Json<PerformanceMetric>, AppError> {
     sqlx::query!(
         "INSERT INTO performance_metrics (id, analysis_id, metric_name, metric_value, unit, threshold_value, is_bottleneck, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
@@ -319,7 +346,7 @@ pub async fn create_performance_metric(
     )
     .execute(state.db.pool())
     .await
-    .map_err(|_: sqlx::Error| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e: sqlx::Error| { tracing::error!("Database error: {}", e); AppError::Database(e) })?;
 
     Ok(Json(metric))
 }
@@ -329,7 +356,7 @@ pub async fn recognize_patterns(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
     Json(error_messages): Json<Vec<String>>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+) -> Result<Json<serde_json::Value>, AppError> {
     // Get existing patterns for this project
     let existing_patterns = sqlx::query_as::<_, ErrorPattern>(
         "SELECT id, project_id, pattern, category, description, frequency, last_seen, suggested_solution, created_at, updated_at
@@ -338,7 +365,7 @@ pub async fn recognize_patterns(
     .bind(&project_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| { tracing::error!("Error: {}", e); AppError::internal(format!("{}", e)) })?;
 
     let mut patterns_by_category = serde_json::Map::new();
 
