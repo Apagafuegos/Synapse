@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT analysis_id, summary as \"summary: Option<String>\",\n                   full_report as \"full_report: Option<String>\",\n                   patterns_detected as \"patterns_detected: serde_json::Value\",\n                   issues_found,\n                   metadata as \"metadata: Option<String>\"\n            FROM analysis_results\n            WHERE analysis_id = ?1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "analysis_id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "summary: Option<String>",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "full_report: Option<String>",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "patterns_detected: serde_json::Value",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "issues_found",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "metadata: Option<String>",
+        "ordinal": 5,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "68bf8d7e94a45ddd2c4e3821563f8d64f1ced41103a132ebbd9ebd24f27bc0c3"
+}

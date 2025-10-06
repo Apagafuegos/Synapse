@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO analyses (id, project_id, log_file_path, provider, level, status, created_at)\n        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "24e0e2bc20ef5e6b3be399e6ab25d322ccfd14bdb7a99218644d7e6219361795"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE analyses \n        SET status = ?1, completed_at = ?2\n        WHERE id = ?3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "9b843085f7d09363493ec3c2e52795f4055fd98a74f17ec60f19103876618645"
+}

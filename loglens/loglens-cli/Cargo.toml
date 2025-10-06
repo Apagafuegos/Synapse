@@ -1,0 +1,18 @@
+[package]
+name = "loglens-cli"
+version = "0.1.0"
+edition = "2021"
+description = "Command-line interface for LogLens log analysis"
+
+[[bin]]
+name = "loglens"
+path = "src/main.rs"
+
+[dependencies]
+loglens-core = { path = "../loglens-core", features = ["project-management", "full"] }
+clap.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true

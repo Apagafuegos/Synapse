@@ -1,0 +1,306 @@
+// LogLens CLI - Command-line interface for log analysis and project management
+
+use anyhow::Result;
+use clap::{Parser, Subcommand};
+use std::path::PathBuf;
+use tracing::{error, info};
+use tracing_subscriber;
+
+#[derive(Parser)]
+#[command(name = "loglens")]
+#[command(about = "AI-powered log analysis with project integration", long_about = None)]
+#[command(version)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Initialize LogLens in a project directory
+    Init {
+        /// Project path (defaults to current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
+
+    /// Link an existing LogLens project to the global registry
+    Link {
+        /// Project path (defaults to current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
+
+    /// Unlink a project from the global registry
+    Unlink {
+        /// Project path (defaults to current directory)
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
+
+    /// List all linked LogLens projects
+    ListProjects,
+
+    /// Validate and optionally repair project links
+    ValidateLinks {
+        /// Automatically repair issues
+        #[arg(long)]
+        repair: bool,
+    },
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Initialize logging
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive("loglens=info".parse().unwrap())
+                .add_directive("loglens_core=info".parse().unwrap()),
+        )
+        .init();
+
+    let cli = Cli::parse();
+
+    match cli.command {
+        Commands::Init { path } => {
+            info!("Initializing LogLens project...");
+
+            match loglens_core::project::initialize_project(path.as_ref()).await {
+                Ok(result) => {
+                    println!("\n✓ LogLens initialized successfully!");
+                    println!("\nProject Details:");
+                    println!("  Type:       {}", result.project_type);
+                    println!("  ID:         {}", result.project_id);
+                    println!("  Location:   {}", result.project_path.display());
+                    println!("\nCreated:");
+                    println!("  {}/.loglens/", result.project_path.display());
+                    println!("    ├── config.toml       (project configuration)");
+                    println!("    ├── metadata.json     (project metadata)");
+                    println!("    ├── index.db          (analysis database)");
+                    println!("    ├── analyses/         (analysis results)");
+                    println!("    └── logs/             (log file cache)");
+                    println!("\nNext steps:");
+                    println!("  - Add log files for analysis");
+                    println!("  - Configure AI provider in config.toml");
+                    println!("  - Start MCP server: loglens --mcp-server");
+
+                    Ok(())
+                }
+                Err(e) => {
+                    error!("Failed to initialize project: {}", e);
+                    eprintln!("\n✗ Initialization failed: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        Commands::Link { path } => {
+            info!("Linking LogLens project...");
+
+            match loglens_core::project::link_project(path.as_deref()).await {
+                Ok(result) => {
+                    if result.already_linked {
+                        println!("\nℹ Project already linked");
+                    } else {
+                        println!("\n✓ Project linked successfully!");
+                    }
+                    println!("\nProject Details:");
+                    println!("  Name:       {}", result.project_name);
+                    println!("  ID:         {}", result.project_id);
+                    println!("  Location:   {}", result.root_path.display());
+                    println!("\nThe project is now registered in the global registry.");
+                    Ok(())
+                }
+                Err(e) => {
+                    error!("Failed to link project: {}", e);
+                    eprintln!("\n✗ Link failed: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        Commands::Unlink { path } => {
+            info!("Unlinking LogLens project...");
+
+            match loglens_core::project::unlink_project(path.as_deref()).await {
+                Ok(result) => {
+                    if result.was_linked {
+                        println!("\n✓ Project unlinked successfully!");
+                    } else {
+                        println!("\nℹ Project was not linked in the registry");
+                    }
+                    println!("\nProject Details:");
+                    println!("  Name:       {}", result.project_name);
+                    println!("  ID:         {}", result.project_id);
+                    println!("  Location:   {}", result.root_path.display());
+                    println!("\nNote: The .loglens/ directory has been preserved.");
+                    Ok(())
+                }
+                Err(e) => {
+                    error!("Failed to unlink project: {}", e);
+                    eprintln!("\n✗ Unlink failed: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        Commands::ListProjects => {
+            info!("Listing linked projects...");
+
+            match loglens_core::project::ProjectRegistry::load() {
+                Ok(registry) => {
+                    let projects = registry.list_projects();
+
+                    if projects.is_empty() {
+                        println!("\nNo linked LogLens projects found.");
+                        println!("\nRun 'loglens init' in a project directory to get started.");
+                    } else {
+                        println!("\nLinked LogLens Projects:");
+                        println!("┌{:─<40}┬{:─<60}┬{:─<25}┐", "", "", "");
+                        println!(
+                            "│ {:38} │ {:58} │ {:23} │",
+                            "Name", "Path", "Last Accessed"
+                        );
+                        println!("├{:─<40}┼{:─<60}┼{:─<25}┤", "", "", "");
+
+                        for (_project_id, entry) in &projects {
+                            let time_ago = format_time_ago(&entry.last_accessed);
+                            let path_str = entry
+                                .root_path
+                                .to_str()
+                                .unwrap_or("<invalid path>")
+                                .chars()
+                                .take(58)
+                                .collect::<String>();
+
+                            println!(
+                                "│ {:38} │ {:58} │ {:23} │",
+                                entry.name.chars().take(38).collect::<String>(),
+                                path_str,
+                                time_ago
+                            );
+                        }
+
+                        println!("└{:─<40}┴{:─<60}┴{:─<25}┘", "", "", "");
+                        println!("\nTotal: {} projects", projects.len());
+                    }
+
+                    Ok(())
+                }
+                Err(e) => {
+                    error!("Failed to load project registry: {}", e);
+                    eprintln!("\n✗ Failed to load registry: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        Commands::ValidateLinks { repair } => {
+            info!("Validating project links...");
+
+            if repair {
+                match loglens_core::project::validate_and_repair().await {
+                    Ok((validation, repair_report)) => {
+                        println!("\n✓ Validation and repair complete!");
+                        println!("\nResults:");
+                        println!(
+                            "  Total projects:   {}",
+                            validation.total_projects
+                        );
+                        println!(
+                            "  Valid projects:   {}",
+                            validation.valid_projects
+                        );
+                        println!(
+                            "  Projects removed: {}",
+                            repair_report.removed.len()
+                        );
+                        println!(
+                            "  Issues remaining: {}",
+                            repair_report.manual_intervention.len()
+                        );
+
+                        if !repair_report.removed.is_empty() {
+                            println!("\nRemoved projects:");
+                            for project_id in &repair_report.removed {
+                                println!("  - {}", project_id);
+                            }
+                        }
+
+                        if !repair_report.manual_intervention.is_empty() {
+                            println!("\nIssues requiring manual intervention:");
+                            for issue in &repair_report.manual_intervention {
+                                println!(
+                                    "  - {} ({}): {}",
+                                    issue.project_id,
+                                    loglens_core::project::validate::format_issue_type(&issue.issue_type),
+                                    issue.path.display()
+                                );
+                            }
+                        }
+
+                        Ok(())
+                    }
+                    Err(e) => {
+                        error!("Failed to validate and repair: {}", e);
+                        eprintln!("\n✗ Validation failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                match loglens_core::project::validate_links().await {
+                    Ok(report) => {
+                        println!("\n✓ Validation complete!");
+                        println!("\nResults:");
+                        println!("  Total projects: {}", report.total_projects);
+                        println!("  Valid projects: {}", report.valid_projects);
+                        println!("  Issues found:   {}", report.issues.len());
+
+                        if !report.issues.is_empty() {
+                            println!("\nIssues found:");
+                            for issue in &report.issues {
+                                println!(
+                                    "  - {} ({}): {}",
+                                    issue.project_id,
+                                    loglens_core::project::validate::format_issue_type(&issue.issue_type),
+                                    issue.path.display()
+                                );
+                            }
+                            println!("\nRun with --repair to automatically fix issues.");
+                        }
+
+                        Ok(())
+                    }
+                    Err(e) => {
+                        error!("Failed to validate links: {}", e);
+                        eprintln!("\n✗ Validation failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Format a timestamp as a human-readable "time ago" string
+fn format_time_ago(timestamp: &chrono::DateTime<chrono::Utc>) -> String {
+    use chrono::Utc;
+
+    let now = Utc::now();
+    let duration = now.signed_duration_since(*timestamp);
+
+    if duration.num_seconds() < 60 {
+        "just now".to_string()
+    } else if duration.num_minutes() < 60 {
+        format!("{} mins ago", duration.num_minutes())
+    } else if duration.num_hours() < 24 {
+        format!("{} hours ago", duration.num_hours())
+    } else if duration.num_days() < 7 {
+        format!("{} days ago", duration.num_days())
+    } else if duration.num_weeks() < 4 {
+        format!("{} weeks ago", duration.num_weeks())
+    } else {
+        format!("{} months ago", duration.num_days() / 30)
+    }
+}

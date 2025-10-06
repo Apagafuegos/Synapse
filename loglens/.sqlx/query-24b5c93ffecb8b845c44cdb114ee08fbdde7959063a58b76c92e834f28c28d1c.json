@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT id, project_id, log_file_path, provider, level, status,\n               created_at, started_at, completed_at, metadata as \"metadata: Option<String>\"\n        FROM analyses\n        WHERE id = ?1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "project_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "log_file_path",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "provider",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "level",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 6,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "started_at",
+        "ordinal": 7,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "completed_at",
+        "ordinal": 8,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "metadata: Option<String>",
+        "ordinal": 9,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "24b5c93ffecb8b845c44cdb114ee08fbdde7959063a58b76c92e834f28c28d1c"
+}

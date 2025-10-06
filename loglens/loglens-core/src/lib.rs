@@ -13,10 +13,12 @@ pub mod config;
 pub mod digest;
 pub mod filter;
 pub mod input;
-pub mod mcp_server;
 pub mod output;
 pub mod parser;
 pub mod slimmer;
+
+#[cfg(feature = "project-management")]
+pub mod project;
 
 pub use ai_provider::{create_provider, create_provider_with_model, AIProvider, AnalysisRequest, AnalysisResponse, AIError, AnalysisFocus, RootCauseAnalysis, OpenRouterProvider, OpenAIProvider, ClaudeProvider, GeminiProvider};
 pub use analyzer::{Analyzer, AnalysisConfig, AnalysisProgress};
