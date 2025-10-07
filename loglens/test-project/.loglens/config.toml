@@ -1,0 +1,13 @@
+[project]
+name = "test-project"
+type = "unknown"
+root_path = "/home/carlos/personal_projects/LogLens/loglens/test-project"
+created_at = "2025-10-07T09:43:47.948545310+00:00"
+
+[loglens]
+auto_analyze = true
+default_provider = "openrouter"
+default_level = "ERROR"
+
+[mcp]
+enabled = true

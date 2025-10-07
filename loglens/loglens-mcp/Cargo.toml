@@ -1,0 +1,29 @@
+[package]
+name = "loglens-mcp"
+version.workspace = true
+edition.workspace = true
+description = "MCP server implementation for LogLens"
+authors.workspace = true
+
+[dependencies]
+# MCP SDK - using rmcp which is already in workspace
+rmcp = { workspace = true, features = ["server", "transport-io"] }
+
+# Workspace dependencies
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Database
+sqlx = { workspace = true }
+
+# Local dependencies
+loglens-core = { path = "../loglens-core" }
+
+[features]
+default = ["project-management"]
+project-management = ["loglens-core/project-management"]

@@ -1571,6 +1571,7 @@ dependencies = [
  "chrono",
  "clap",
  "loglens-core",
+ "loglens-mcp",
  "loglens-web",
  "tokio",
  "tracing",
@@ -1600,6 +1601,22 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "loglens-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "loglens-core",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
  "uuid",
 ]
 

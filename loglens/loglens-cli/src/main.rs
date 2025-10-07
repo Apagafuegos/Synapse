@@ -1,10 +1,16 @@
 // LogLens CLI - Command-line interface for log analysis and project management
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 use tracing::{error, info};
 use tracing_subscriber;
+
+#[derive(Clone, ValueEnum, Debug)]
+enum McpTransport {
+    Stdio,
+    Http,
+}
 
 #[derive(Parser)]
 #[command(name = "loglens")]
@@ -26,6 +32,10 @@ struct Cli {
     /// MCP server port (default: 3001)
     #[arg(long, default_value = "3001")]
     mcp_port: u16,
+
+    /// MCP server transport mode (stdio or http)
+    #[arg(long, value_enum, default_value = "stdio")]
+    mcp_transport: McpTransport,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -97,13 +107,13 @@ async fn main() -> Result<()> {
 
     // Handle MCP server flag
     if cli.mcp_server {
-        info!("Starting MCP server on port {}", cli.mcp_port);
+        info!("Starting MCP server with {:?} transport on port {}", cli.mcp_transport, cli.mcp_port);
         
         // Set environment for MCP server
         std::env::set_var("MCP_PORT", &cli.mcp_port.to_string());
         
         // Start MCP server
-        if let Err(e) = start_mcp_server().await {
+        if let Err(e) = start_mcp_server(cli.mcp_transport, cli.mcp_port).await {
             error!("Failed to start MCP server: {}", e);
             eprintln!("❌ Failed to start MCP server: {}", e);
             std::process::exit(1);
@@ -355,20 +365,39 @@ async fn start_dashboard() -> Result<()> {
 }
 
 /// Start the MCP server
-async fn start_mcp_server() -> Result<()> {
-    // Import the MCP server functionality
-    use loglens_core::mcp_server::start_server;
+async fn start_mcp_server(transport: McpTransport, port: u16) -> Result<()> {
+    use loglens_mcp::{create_server, Database, Config};
+    use loglens_core::db_path::get_database_path;
     
-    let port = std::env::var("MCP_PORT")
-        .ok()
-        .and_then(|p| p.parse().ok())
-        .unwrap_or(3001);
+    // Initialize database
+    let database_path = get_database_path();
+    let db = Database::new(&database_path.to_string_lossy()).await?;
     
-    println!("🔗 Starting LogLens MCP server on port {}", port);
-    println!("   Tools available: analyze_logs, parse_logs, filter_logs");
+    // Create server configuration
+    let config = Config::default();
+    
+    // Create MCP server
+    let server = create_server(db, config).await?;
+    
+    println!("🔗 Starting LogLens MCP server");
+    println!("   Transport: {:?}", transport);
+    if matches!(transport, McpTransport::Http) {
+        println!("   Port: {}", port);
+    }
+    println!("   Tools available: list_projects, get_project, list_analyses, get_analysis, get_analysis_status, analyze_file");
     println!("   Press Ctrl+C to stop");
     
-    start_server(port).await
+    // Start server with appropriate transport
+    match transport {
+        McpTransport::Stdio => {
+            server.start_stdio().await?;
+        }
+        McpTransport::Http => {
+            server.start_http(port).await?;
+        }
+    }
+    
+    Ok(())
 }
 
 /// Format a timestamp as a human-readable "time ago" string

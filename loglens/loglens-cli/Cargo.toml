@@ -11,6 +11,7 @@ path = "src/main.rs"
 [dependencies]
 loglens-core = { path = "../loglens-core", features = ["mcp-server", "full"] }
 loglens-web = { path = "../loglens-web" }
+loglens-mcp = { path = "../loglens-mcp" }
 clap.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
