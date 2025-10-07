@@ -1,5 +1,5 @@
 [workspace]
-members = ["loglens-core", "loglens-web", "loglens-wasm"]
+members = ["loglens-core", "loglens-web", "loglens-wasm", "loglens-cli"]
 resolver = "2"
 
 [workspace.dependencies]

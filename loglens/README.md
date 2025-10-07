@@ -12,12 +12,17 @@ LogLens is a comprehensive log analysis platform that combines AI-powered insigh
 
 - **AI-Powered Analysis**: Leverage OpenAI, Claude, Gemini, or OpenRouter for intelligent log interpretation
 - **Multi-Provider Support**: Switch between AI providers based on your needs and API availability
-- **Real-Time Analysis**: Stream analysis results with live progress tracking
-- **Pattern Detection**: Automatically identify recurring patterns and trends in logs
-- **Anomaly Detection**: Discover unusual patterns and outliers with confidence scoring
+- **Advanced Log Processing**: Multi-format parsing (JSON, syslog, common formats) with intelligent filtering
+- **Real-Time Analysis**: Stream analysis results with live progress tracking via WebSocket
+- **Pattern Detection**: Automatically identify recurring patterns with frequency analysis and confidence scoring
+- **Anomaly Detection**: Discover unusual patterns and outliers with statistical analysis
 - **Performance Metrics**: Track timing statistics, bottlenecks, and performance scoring
-- **Error Correlation**: Find relationships between errors and identify root causes
-- **Smart Recommendations**: Get actionable insights and remediation suggestions
+- **Error Correlation**: Cross-error correlation analysis with strength scoring
+- **Root Cause Analysis**: Intelligent root cause identification with confidence levels
+- **Smart Recommendations**: Get actionable insights and prioritized remediation suggestions
+- **Multi-Log Analysis**: Comparative analysis across multiple log files
+- **Knowledge Base**: Built-in knowledge management for problem-solution pairs
+- **Streaming Sources**: Real-time log streaming from files, commands, TCP, HTTP, and stdin
 
 ### 🌐 Web Interface Features
 
@@ -33,30 +38,46 @@ LogLens is a comprehensive log analysis platform that combines AI-powered insigh
 - Search and filter projects
 
 #### 📈 Advanced Analysis View
-- **Executive Summary**: High-level overview with confidence scoring
-- **Error Analysis Dashboard**: Categorized error breakdown with severity levels
-- **Pattern Detection**: Visual representation of recurring patterns and frequencies
+- **Executive Summary**: High-level overview with confidence scoring and key insights
+- **Error Analysis Dashboard**: Categorized error breakdown with severity levels and trends
+- **Pattern Detection**: Visual representation of recurring patterns with frequency analysis
 - **Performance Metrics**:
-  - Timeline charts showing event distribution
+  - Timeline charts showing event distribution and trends
   - Performance scoring with bottleneck identification
-  - Timing statistics and trends
-- **Anomaly Detection**: Unusual patterns with confidence levels
-- **Recommendations**: Prioritized action items for issue resolution
+  - Timing statistics and trend analysis
+  - Threshold monitoring and alerts
+- **Anomaly Detection**: Statistical anomaly detection with confidence levels and categorization
+- **Error Correlation**: Cross-error correlation analysis with strength scoring
+- **Multi-Log Analysis**: Comparative analysis across multiple files with trend identification
+- **Recommendations**: Prioritized action items with confidence scoring
+- **Knowledge Integration**: Related knowledge base entries and suggested solutions
 
 #### ⚙️ Settings & Configuration
 - **AI Provider Configuration**:
   - Select from OpenAI, Claude, Gemini, OpenRouter, or Mock (testing)
   - API key management with provider-specific setup instructions
-  - Model selection with context limits
-  - Model caching and refresh
+  - Model selection with context limits and caching
+  - Automatic model refresh and availability checking
 - **Analysis Settings**:
   - Max log lines to analyze (100-10,000)
   - Default log level (ERROR, WARN, INFO, DEBUG)
   - Custom timeout configuration (60-1800 seconds)
+  - Advanced analysis options (correlation, anomaly detection)
+- **Streaming Configuration**:
+  - Multiple streaming sources (file, command, TCP, HTTP, stdin)
+  - Buffer sizes and timeout settings
+  - Parser configuration for different log formats
+  - Project isolation and source management
 - **UI Settings**:
+  - Dark/light theme with system preference detection
   - Toggle timestamps display
   - Toggle line numbers
-  - Dark mode support
+  - Real-time update preferences
+- **Knowledge Base**:
+  - Create and manage problem-solution pairs
+  - Public sharing across projects
+  - Search and filtering options
+  - Usage tracking and statistics
 
 #### 🎨 User Experience
 - **Dark Mode**: Full dark/light theme support with system preference detection
@@ -70,12 +91,18 @@ LogLens is a comprehensive log analysis platform that combines AI-powered insigh
 
 - **WASM Integration**: WebAssembly for high-performance client-side processing
 - **Type Safety**: Full TypeScript implementation in frontend
-- **React Query**: Efficient data fetching and caching
-- **WebSocket Support**: Real-time streaming of analysis results
-- **SQLite Database**: Persistent storage with SQLx for type-safe queries
-- **Circuit Breakers**: Resilient API calls with automatic retry logic
-- **Caching Layer**: In-memory caching for improved performance
+- **React Query**: Efficient data fetching and caching with optimistic updates
+- **WebSocket Support**: Real-time streaming of analysis results and progress
+- **SQLite Database**: Persistent storage with SQLx for type-safe queries and WAL mode
+- **Circuit Breakers**: Resilient API calls with automatic retry logic and rate limiting
+- **Caching Layer**: In-memory caching for improved performance with TTL management
 - **Structured Logging**: Comprehensive tracing with configurable log levels
+- **MCP Integration**: Full Model Context Protocol support for AI assistant integration
+- **Streaming Architecture**: Real-time log processing with multiple source support
+- **Advanced Analytics**: Statistical analysis, correlation detection, and trend identification
+- **Knowledge Management**: Built-in knowledge base with sharing and search capabilities
+- **Export System**: Multi-format export (HTML, PDF, JSON, CSV, Markdown) with templates
+- **Performance Optimization**: Chunking, batching, and asynchronous processing
 
 ---
 
@@ -408,11 +435,36 @@ loglens/
 - `GET /api/projects/:id/analyses` - List analyses
 - `GET /api/analyses/:id` - Get analysis details
 - `GET /api/analyses/:id/stream` - Stream analysis results (SSE)
+- `DELETE /api/analyses/:id` - Delete analysis
+- `POST /api/analyses/:id/cancel` - Cancel running analysis
 
-### Settings
-- `GET /api/settings` - Get settings
-- `PUT /api/settings` - Update settings
-- `POST /api/settings/models/fetch` - Fetch available models
+### Streaming
+- `GET /api/streaming/sources` - List streaming sources
+- `POST /api/streaming/sources` - Create streaming source
+- `GET /api/streaming/sources/:id` - Get source details
+- `DELETE /api/streaming/sources/:id` - Delete streaming source
+- `GET /api/streaming/stats` - Get streaming statistics
+- `POST /api/streaming/sources/:id/restart` - Restart streaming source
+
+### Knowledge Base
+- `GET /api/knowledge` - List knowledge entries
+- `POST /api/knowledge` - Create knowledge entry
+- `GET /api/knowledge/:id` - Get knowledge entry
+- `PUT /api/knowledge/:id` - Update knowledge entry
+- `DELETE /api/knowledge/:id` - Delete knowledge entry
+- `GET /api/knowledge/search` - Search knowledge base
+- `POST /api/knowledge/:id/share` - Share knowledge entry
+
+### Export
+- `POST /api/analyses/:id/export` - Export analysis
+- `GET /api/exports/:id/download` - Download export
+- `GET /api/exports/:id` - Get export status
+- `POST /api/exports/:id/share` - Create shareable link
+
+### MCP Integration
+- `POST /api/mcp/analyze` - MCP analysis endpoint
+- `GET /api/mcp/tools` - List available MCP tools
+- `POST /api/mcp/tools/:tool` - Execute MCP tool
 
 ### System
 - `GET /api/health` - Health check
@@ -420,15 +472,264 @@ loglens/
 
 ---
 
-## 🔒 Security
+## 📡 Streaming Features
 
-- Input validation and sanitization on all user inputs
-- UUID validation for resource identifiers
-- File size limits (default 50MB)
-- API key encryption at rest
-- CORS configuration for web requests
-- SQL injection protection via parameterized queries
-- XSS prevention through React's built-in escaping
+### Supported Sources
+
+**File Streaming**: Real-time log file tailing with automatic restart
+```bash
+# Stream from a log file
+curl -X POST http://localhost:3000/api/streaming/sources \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "app-logs",
+    "source_type": "file", 
+    "config": {
+      "file_path": "/var/log/app.log",
+      "buffer_size": 1000,
+      "timeout": 30
+    },
+    "project_id": "project-uuid"
+  }'
+```
+
+**Command Streaming**: Stream output from system commands
+```bash
+curl -X POST http://localhost:3000/api/streaming/sources \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "system-logs",
+    "source_type": "command",
+    "config": {
+      "command": "journalctl -f -u nginx",
+      "buffer_size": 500,
+      "timeout": 60
+    },
+    "project_id": "project-uuid"
+  }'
+```
+
+**TCP Listener**: Accept logs via TCP connections
+```bash
+curl -X POST http://localhost:3000/api/streaming/sources \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "tcp-logs",
+    "source_type": "tcp",
+    "config": {
+      "bind_address": "0.0.0.0:5140",
+      "buffer_size": 2000,
+      "timeout": 10
+    },
+    "project_id": "project-uuid"
+  }'
+```
+
+### Streaming Management
+
+- **Buffer Management**: Configurable buffer sizes for performance optimization
+- **Parser Configuration**: Support for multiple log formats (JSON, syslog, custom)
+- **Statistics Tracking**: Real-time metrics on connection counts, processed logs
+- **Error Recovery**: Automatic restart on failures with exponential backoff
+- **Project Isolation**: Per-project streaming with resource isolation
+
+---
+
+## 🧠 Knowledge Base
+
+### Creating Knowledge Entries
+
+```typescript
+// Via Web Interface
+const knowledgeEntry = {
+  title: "Database Connection Timeout",
+  problem: "Application experiences intermittent database connection timeouts",
+  solution: "Increase connection pool size and implement connection retry logic",
+  category: "infrastructure",
+  tags: ["database", "timeout", "connection-pool"],
+  public: true,
+  related_patterns: ["connection-refused", "timeout-error"]
+};
+```
+
+### Knowledge Features
+
+- **Problem-Solution Pairs**: Structured knowledge with problem description and solutions
+- **Public Sharing**: Share knowledge across projects for team collaboration
+- **Full-Text Search**: Advanced search with filtering and relevance ranking
+- **Usage Tracking**: Track which knowledge entries are most useful
+- **Tag System**: Categorize knowledge with flexible tagging
+- **Pattern Integration**: Link knowledge to detected log patterns
+- **AI Suggestions**: Get AI-generated solution suggestions
+
+### Knowledge API
+
+```bash
+# Create knowledge entry
+curl -X POST http://localhost:3000/api/knowledge \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "API Rate Limiting",
+    "problem": "Exceeding API rate limits causing 429 errors",
+    "solution": "Implement exponential backoff and request queuing",
+    "category": "external",
+    "tags": ["api", "rate-limit", "429"],
+    "public": true
+  }'
+
+# Search knowledge
+curl "http://localhost:3000/api/knowledge/search?q=database&category=infrastructure"
+```
+
+---
+
+## 🤖 MCP Integration
+
+### Model Context Protocol Support
+
+LogLens provides full MCP (Model Context Protocol) support for integration with AI assistants like Claude Desktop:
+
+### Available MCP Tools
+
+1. **analyze_logs**: Direct log content analysis
+2. **parse_logs**: Structured log parsing with metadata
+3. **filter_logs**: Log filtering by level and patterns
+4. **add_log_file**: File-based analysis with automatic processing
+5. **get_analysis**: Retrieve detailed analysis results
+6. **query_analyses**: Search and filter analyses
+
+### MCP Server Mode
+
+```bash
+# Start MCP server
+loglens --mcp-server
+
+# With custom configuration
+LOGLENS_MCP_PORT=8080 \
+LOGLENS_MCP_HOST=localhost \
+loglens --mcp-server
+```
+
+### Claude Desktop Integration
+
+Add to Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "loglens": {
+      "command": "loglens",
+      "args": ["--mcp-server"]
+    }
+  }
+}
+```
+
+### MCP Usage Example
+
+```typescript
+// Via MCP-compatible AI assistant
+const result = await mcp.call("analyze_logs", {
+  logs: ["[ERROR] Database connection failed", "[WARN] Retry attempt 1"],
+  level: "ERROR",
+  provider: "openrouter",
+  options: {
+    include_patterns: true,
+    include_correlations: true
+  }
+});
+```
+
+---
+
+## 📊 Advanced Analytics
+
+### Multi-Log Analysis
+
+- **Comparative Analysis**: Compare logs across multiple files and time periods
+- **Cross-File Patterns**: Identify patterns affecting multiple systems
+- **Trend Analysis**: Track pattern evolution over time
+- **Correlation Analysis**: Find relationships between different log sources
+
+### Performance Analysis
+
+- **Timing Metrics**: Detailed timing analysis with statistical summaries
+- **Bottleneck Detection**: Automatic identification of performance bottlenecks
+- **Threshold Monitoring**: Customizable performance thresholds with alerts
+- **Resource Utilization**: Track system resource usage patterns
+
+### Anomaly Detection
+
+- **Statistical Analysis**: Advanced statistical methods for anomaly detection
+- **Confidence Scoring**: Reliability assessment for detected anomalies
+- **Type Classification**: Categorize anomalies (timing, frequency, pattern)
+- **Alert Integration**: Real-time anomaly detection with alerting
+
+### Correlation Analysis
+
+- **Cross-Error Correlation**: Find relationships between different errors
+- **Root Cause Analysis**: Advanced root cause identification
+- **Impact Assessment**: Assess the impact of issues on system performance
+- **Timeline Correlation**: Time-based correlation analysis
+
+---
+
+## 📄 Export & Reporting
+
+### Supported Export Formats
+
+- **HTML Reports**: Styled reports with charts and interactive elements
+- **PDF Reports**: Professional PDF export via wkhtmltopdf
+- **JSON Export**: Structured data for programmatic consumption
+- **CSV Export**: Tabular data for spreadsheet analysis
+- **Markdown Export**: Documentation-friendly format
+
+### Shareable Reports
+
+```bash
+# Create shareable link
+curl -X POST http://localhost:3000/api/exports/:id/share \
+  -H "Content-Type: application/json" \
+  -d '{
+    "expires_in": "7d",
+    "password": "optional-password",
+    "allow_download": true
+  }'
+```
+
+### Export Features
+
+- **Template Support**: Customizable report templates
+- **Chart Inclusion**: Optional chart embedding in exports
+- **Correlation Data**: Include/exclude correlation analysis
+- **Metadata**: Comprehensive export metadata
+- **Password Protection**: Optional password protection for shared links
+- **Expiration Control**: Time-limited access to shared reports
+
+---
+
+## 🔒 Security & Reliability
+
+### Security Features
+
+- **Input Validation**: Comprehensive input sanitization and validation
+- **API Key Encryption**: Secure storage of API keys with encryption
+- **CORS Configuration**: Configurable cross-origin request security
+- **SQL Injection Protection**: Parameterized queries prevent injection attacks
+- **File Size Limits**: Configurable upload limits with validation
+- **XSS Prevention**: Built-in React XSS protection
+- **Authentication**: Settings-based API key management
+
+### Reliability Features
+
+- **Error Boundaries**: Graceful error handling in UI with recovery options
+- **Retry Logic**: Automatic retry for failed operations with backoff
+- **Graceful Degradation**: Fallback functionality during failures
+- **Health Checks**: Comprehensive system health monitoring
+- **Structured Logging**: Detailed operational logging with tracing
+- **Circuit Breakers**: Resilient API call handling
+- **Connection Pooling**: Efficient database connection management
+- **Data Persistence**: Reliable data storage with WAL mode
 
 ---
 

@@ -30,31 +30,56 @@ pub fn parse_single_log_line(line: &str, timestamp_regex: &Regex) -> LogEntry {
         message = message.replace(ts, "").trim().to_string();
     }
     
-    // Remove level in various formats more carefully
-    if let Some(lvl) = &level {
-        // Try to remove common level patterns, being careful about order
-        let level_patterns = [
-            format!("[{}]", lvl),
-            format!("({})", lvl),
-            format!("{}:", lvl),
-            lvl.to_string(),
+    // Remove level in various formats - need to check for ALL variants, not just normalized
+    if level.is_some() {
+        // Build comprehensive list of level patterns to remove
+        let all_level_variants = vec![
+            "ERROR", "ERR", "FATAL", "CRIT", "CRITICAL",
+            "WARN", "WARNING", "INFO", "INFORMATION",
+            "DEBUG", "DBG", "TRACE", "TRC"
         ];
-        
-        for pattern in &level_patterns {
-            if message.to_uppercase().contains(&pattern.to_uppercase()) {
-                // Use case-insensitive replacement
-                let pattern_re = regex::Regex::new(&format!(r"(?i){}", regex::escape(pattern))).unwrap();
-                message = pattern_re.replace(&message, "").to_string().trim().to_string();
-                break; // Only remove the first match to avoid over-processing
+
+        // Try each variant in brackets, parens, with colon first (more specific)
+        let mut found = false;
+        for variant in &all_level_variants {
+            let patterns = [
+                format!("[{}]", variant),
+                format!("({})", variant),
+                format!("{}:", variant),
+            ];
+
+            for pattern in &patterns {
+                if message.to_uppercase().contains(&pattern.to_uppercase()) {
+                    // Use case-insensitive replacement
+                    let pattern_re = regex::Regex::new(&format!(r"(?i){}", regex::escape(pattern))).unwrap();
+                    message = pattern_re.replace(&message, "").to_string().trim().to_string();
+                    found = true;
+                    break;
+                }
+            }
+            if found {
+                break;
+            }
+        }
+
+        // If no formatted level found, try standalone word boundaries
+        if !found {
+            for variant in &all_level_variants {
+                let pattern_re = regex::Regex::new(&format!(r"(?i)\b{}\b", regex::escape(variant))).unwrap();
+                if pattern_re.is_match(&message) {
+                    message = pattern_re.replace(&message, "").to_string().trim().to_string();
+                    break;
+                }
             }
         }
     }
 
+    // Trim before checking for bracketed prefixes
+    message = message.trim().to_string();
+
     // Remove common log prefixes like [main], (thread), etc. but be more selective
     let bracket_re = Regex::new(r"^\s*[\[\(][^\]\)]*[\]\)]\s*").unwrap();
-    message = bracket_re.replace(&message, "").to_string();
-
-    message = message.trim().to_string();
+    message = bracket_re.replace(&message, "").to_string().trim().to_string();
 
     LogEntry {
         timestamp,
@@ -67,41 +92,42 @@ pub fn parse_single_log_line(line: &str, timestamp_regex: &Regex) -> LogEntry {
 pub fn normalize_log_level(line: &str) -> Option<String> {
     // Convert to uppercase for case-insensitive matching
     let line_upper = line.to_uppercase();
-    
-    // Define comprehensive patterns for different log levels - order matters for specificity
-    let level_patterns = [
-        // ERROR patterns - most specific first
-        (vec![r"\bERROR\b", r"\bERR\b", r"\[ERROR\]", r"\(ERROR\)", r"\[ERR\]", r"\(ERR\)"], "ERROR"),
-        
-        // FATAL/CRITICAL patterns
-        (vec![r"\bFATAL\b", r"\bCRIT\b", r"\bCRITICAL\b", r"\[FATAL\]", r"\(FATAL\)", r"\[CRIT\]", r"\(CRIT\)", r"\[CRITICAL\]", r"\(CRITICAL\)"], "FATAL"),
-        
-        // WARN/WARNING patterns  
-        (vec![r"\bWARN\b", r"\bWARNING\b", r"\[WARN\]", r"\(WARN\)", r"\[WARNING\]", r"\(WARNING\)"], "WARN"),
-        
-        // INFO/INFORMATION patterns
-        (vec![r"\bINFO\b", r"\bINFORMATION\b", r"\[INFO\]", r"\(INFO\)", r"\[INFORMATION\]", r"\(INFORMATION\)"], "INFO"),
-        
-        // DEBUG patterns
-        (vec![r"\bDEBUG\b", r"\bDBG\b", r"\[DEBUG\]", r"\(DEBUG\)", r"\[DBG\]", r"\(DBG\)"], "DEBUG"),
-        
-        // TRACE patterns
-        (vec![r"\bTRACE\b", r"\bTRC\b", r"\[TRACE\]", r"\(TRACE\)", r"\[TRC\]", r"\(TRC\)"], "TRACE"),
+
+    // Check for numeric log levels first (most specific - e.g., "Level: 1 Debug info" should match level 1, not "info")
+    let numeric_patterns = [
+        (r"\b[Ll]evel\s*[:=]\s*0\b", "TRACE"),
+        (r"\b[Ll]evel\s*[:=]\s*1\b", "DEBUG"),
+        (r"\b[Ll]evel\s*[:=]\s*2\b", "INFO"),
+        (r"\b[Ll]evel\s*[:=]\s*3\b", "WARN"),
+        (r"\b[Ll]evel\s*[:=]\s*4\b", "ERROR"),
+        (r"\b[Ll]evel\s*[:=]\s*5\b", "FATAL"),
     ];
-    
-    // Try each pattern group
-    for (patterns, normalized_level) in &level_patterns {
-        for pattern in patterns {
-            if let Ok(re) = Regex::new(pattern) {
-                if re.is_match(&line_upper) {
-                    return Some(normalized_level.to_string());
-                }
+
+    for (pattern, level) in &numeric_patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if re.is_match(line) {
+                return Some(level.to_string());
             }
         }
     }
-    
-    // Check for colon-separated levels like "DEBUG: message"
-    if let Ok(re) = Regex::new(r"\b(ERROR|ERR|FATAL|CRIT|CRITICAL|WARN|WARNING|INFO|INFORMATION|DEBUG|DBG|TRACE|TRC)\s*:") {
+
+    // Check for severity indicators (also more specific)
+    let severity_patterns = [
+        (r"\b[Ss]everity\s*[:=]\s*[Hh]igh\b", "ERROR"),
+        (r"\b[Ss]everity\s*[:=]\s*[Mm]edium\b", "WARN"),
+        (r"\b[Ss]everity\s*[:=]\s*[Ll]ow\b", "INFO"),
+    ];
+
+    for (pattern, level) in &severity_patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if re.is_match(line) {
+                return Some(level.to_string());
+            }
+        }
+    }
+
+    // Check for colon-separated levels like "DEBUG: message" (check this before word boundaries to avoid false matches)
+    if let Ok(re) = Regex::new(r"^\s*(ERROR|ERR|FATAL|CRIT|CRITICAL|WARN|WARNING|INFO|INFORMATION|DEBUG|DBG|TRACE|TRC)\s*:") {
         if let Some(caps) = re.captures(&line_upper) {
             let level = &caps[1];
             match level {
@@ -115,36 +141,36 @@ pub fn normalize_log_level(line: &str) -> Option<String> {
             }
         }
     }
-    
-    // Additional check for numeric log levels (common in some systems)
-    let numeric_patterns = [
-        (r"\b[Ll]evel\s*[:\s]\s*0\b", "TRACE"),
-        (r"\b[Ll]evel\s*[:\s]\s*1\b", "DEBUG"), 
-        (r"\b[Ll]evel\s*[:\s]\s*2\b", "INFO"),
-        (r"\b[Ll]evel\s*[:\s]\s*3\b", "WARN"),
-        (r"\b[Ll]evel\s*[:\s]\s*4\b", "ERROR"),
-        (r"\b[Ll]evel\s*[:\s]\s*5\b", "FATAL"),
+
+    // Define comprehensive patterns for different log levels - order matters for specificity
+    // FATAL/CRITICAL must come before ERROR to match "FATAL error occurred" correctly
+    let level_patterns = [
+        // FATAL/CRITICAL patterns - check before ERROR
+        (vec![r"\bFATAL\b", r"\bCRIT\b", r"\bCRITICAL\b", r"\[FATAL\]", r"\(FATAL\)", r"\[CRIT\]", r"\(CRIT\)", r"\[CRITICAL\]", r"\(CRITICAL\)"], "FATAL"),
+
+        // ERROR patterns
+        (vec![r"\bERROR\b", r"\bERR\b", r"\[ERROR\]", r"\(ERROR\)", r"\[ERR\]", r"\(ERR\)"], "ERROR"),
+
+        // WARN/WARNING patterns
+        (vec![r"\bWARN\b", r"\bWARNING\b", r"\[WARN\]", r"\(WARN\)", r"\[WARNING\]", r"\(WARNING\)"], "WARN"),
+
+        // INFO/INFORMATION patterns
+        (vec![r"\bINFO\b", r"\bINFORMATION\b", r"\[INFO\]", r"\(INFO\)", r"\[INFORMATION\]", r"\(INFORMATION\)"], "INFO"),
+
+        // DEBUG patterns
+        (vec![r"\bDEBUG\b", r"\bDBG\b", r"\[DEBUG\]", r"\(DEBUG\)", r"\[DBG\]", r"\(DBG\)"], "DEBUG"),
+
+        // TRACE patterns
+        (vec![r"\bTRACE\b", r"\bTRC\b", r"\[TRACE\]", r"\(TRACE\)", r"\[TRC\]", r"\(TRC\)"], "TRACE"),
     ];
-    
-    for (pattern, level) in &numeric_patterns {
-        if let Ok(re) = Regex::new(pattern) {
-            if re.is_match(line) {
-                return Some(level.to_string());
-            }
-        }
-    }
-    
-    // Check for severity indicators
-    let severity_patterns = [
-        (r"\b[Ss]everity\s*[:\s]\s*[Hh]igh\b", "ERROR"),
-        (r"\b[Ss]everity\s*[:\s]\s*[Mm]edium\b", "WARN"),
-        (r"\b[Ss]everity\s*[:\s]\s*[Ll]ow\b", "INFO"),
-    ];
-    
-    for (pattern, level) in &severity_patterns {
-        if let Ok(re) = Regex::new(pattern) {
-            if re.is_match(line) {
-                return Some(level.to_string());
+
+    // Try each pattern group
+    for (patterns, normalized_level) in &level_patterns {
+        for pattern in patterns {
+            if let Ok(re) = Regex::new(pattern) {
+                if re.is_match(&line_upper) {
+                    return Some(normalized_level.to_string());
+                }
             }
         }
     }

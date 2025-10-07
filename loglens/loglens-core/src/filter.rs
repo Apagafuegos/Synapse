@@ -75,27 +75,28 @@ mod tests {
     fn test_filter_logs() {
         let entries = vec![
             LogEntry {
-                timestamp: Some("$1".to_string()),
-                level: Some("$2".to_string()),
-                message: "$3".to_string(),
+                timestamp: Some("2025-01-01 12:00:00".to_string()),
+                level: Some("DEBUG".to_string()),
+                message: "Debug message".to_string(),
                 line_number: Some(1),
             },
             LogEntry {
-                timestamp: Some("$1".to_string()),
-                level: Some("$2".to_string()),
-                message: "$3".to_string(),
-                line_number: Some(1),
+                timestamp: Some("2025-01-01 12:01:00".to_string()),
+                level: Some("WARN".to_string()),
+                message: "Warning message".to_string(),
+                line_number: Some(2),
             },
             LogEntry {
-                timestamp: Some("$1".to_string()),
-                level: Some("$2".to_string()),
-                message: "$3".to_string(),
-                line_number: Some(1),
+                timestamp: Some("2025-01-01 12:02:00".to_string()),
+                level: Some("ERROR".to_string()),
+                message: "Error message".to_string(),
+                line_number: Some(3),
             },
         ];
 
         let filtered = filter_logs_by_level(entries, "WARN").unwrap();
-        assert_eq!(filtered.len(), 1);
-        assert_eq!(filtered[0].level, Some("ERROR".to_string()));
+        assert_eq!(filtered.len(), 2); // WARN and ERROR should pass
+        assert_eq!(filtered[0].level, Some("WARN".to_string()));
+        assert_eq!(filtered[1].level, Some("ERROR".to_string()));
     }
 }

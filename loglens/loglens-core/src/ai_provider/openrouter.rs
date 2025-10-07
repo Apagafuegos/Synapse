@@ -91,6 +91,13 @@ impl OpenRouterProvider {
             {
                 in_sequence = true;
                 in_recommendations = false;
+                // Also collect this trigger line if it has useful content
+                if !line.trim().is_empty() && line.trim().len() > 10 {
+                    if !sequence_of_events.is_empty() {
+                        sequence_of_events.push(' ');
+                    }
+                    sequence_of_events.push_str(line.trim());
+                }
                 continue;
             }
 

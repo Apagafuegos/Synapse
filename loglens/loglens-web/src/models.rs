@@ -8,6 +8,10 @@ pub struct Project {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
+    pub root_path: Option<String>,        // CLI project field
+    pub loglens_config: Option<String>,   // CLI project configuration
+    pub project_type: String,             // CLI project type (web, cli, unknown)
+    pub last_accessed: Option<DateTime<Utc>>, // CLI project access tracking
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -242,6 +246,32 @@ impl Project {
             id: Uuid::new_v4().to_string(),
             name,
             description,
+            root_path: None,
+            loglens_config: None,
+            project_type: "web".to_string(),
+            last_accessed: None,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    pub fn new_cli_project(
+        id: String,
+        name: String,
+        description: Option<String>,
+        root_path: String,
+        loglens_config: Option<String>,
+        project_type: String,
+    ) -> Self {
+        let now = Utc::now();
+        Self {
+            id,
+            name,
+            description,
+            root_path: Some(root_path),
+            loglens_config,
+            project_type,
+            last_accessed: Some(now),
             created_at: now,
             updated_at: now,
         }

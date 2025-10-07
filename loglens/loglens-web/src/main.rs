@@ -179,7 +179,9 @@ pub async fn create_app(
             ServeDir::new(&frontend_path)
                 .not_found_service(ServeFile::new(&index_path))
         )
-        .fallback(handle_404)
+        .fallback_service(
+            ServeFile::new(&index_path)
+        )
         .layer(
             ServiceBuilder::new()
                 .layer(axum::middleware::from_fn(move |req, next| {
