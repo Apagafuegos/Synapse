@@ -13,7 +13,7 @@ permissions:
   
 env:
   REGISTRY: ghcr.io
-  # IMAGE_NAME will be "Apagofuegos/LogLens" based on your repository
+  # This should resolve to your user/org and repo name (e.g., Apagofuegos/LogLens)
   IMAGE_NAME: ${{ github.repository }} 
 
 jobs:
@@ -43,8 +43,8 @@ jobs:
       - name: Build and push Docker image 🚀
         uses: docker/build-push-action@v5
         with:
-          # This is the crucial change: it points to the subdirectory containing the Dockerfile
-          context: ./Loglens/loglens
+          # CORRECTED PATH: Points directly to the 'loglens' subdirectory
+          context: ./loglens 
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
