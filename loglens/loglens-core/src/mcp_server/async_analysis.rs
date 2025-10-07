@@ -63,6 +63,12 @@ pub async fn spawn_analysis_task(
                         Some(Pattern {
                             pattern: p.get("pattern")?.as_str()?.to_string(),
                             count: p.get("count")?.as_u64()? as usize,
+                            examples: p.get("examples")
+                                .and_then(|e| e.as_array())
+                                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                                .unwrap_or_default(),
+                            severity: p.get("severity").and_then(|s| s.as_str()).unwrap_or("INFO").to_string(),
+                            confidence: p.get("confidence").and_then(|c| c.as_f64()).unwrap_or(0.0),
                         })
                     }).collect()
                 })
@@ -147,39 +153,40 @@ mod tests {
     use sqlx::SqlitePool;
     use tempfile::{NamedTempFile, TempDir};
     use std::io::Write;
-    use crate::project::{queries::create_analysis, database::create_pool};
+    use crate::project::queries::create_analysis;
 
     async fn setup_test_pool() -> (SqlitePool, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
-        let db_url = format!("sqlite:{}", db_path.display());
-        
-        let pool = SqlitePool::connect(&db_url).await.unwrap();
-        
-        // Run migrations
-        sqlx::migrate!("./migrations")
-            .run(&pool)
+
+        // Use the database module's initialization which handles schema creation
+        let pool = crate::project::database::initialize_database(&db_path)
             .await
             .unwrap();
-        
+
         (pool, temp_dir)
     }
 
     #[tokio::test]
     async fn test_spawn_analysis_task_success() {
         let (pool, _temp) = setup_test_pool().await;
-        
+
+        // Create a test project first (required for foreign key constraint)
+        let project_id = crate::project::queries::get_or_create_project(&pool, "/test/project")
+            .await
+            .unwrap();
+
         // Create a temporary log file
         let mut log_file = NamedTempFile::new().unwrap();
         writeln!(log_file, "[ERROR] Test error message 1").unwrap();
         writeln!(log_file, "[WARN] Test warning message").unwrap();
         writeln!(log_file, "[ERROR] Test error message 2").unwrap();
         let log_file_path = log_file.path().to_path_buf();
-        
+
         // Create an analysis record
         let analysis_id = create_analysis(
             &pool,
-            "test-project".to_string(),
+            project_id,
             log_file_path.to_string_lossy().to_string(),
             "mock".to_string(), // Use mock provider to avoid actual API calls
             "ERROR".to_string(),

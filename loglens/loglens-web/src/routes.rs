@@ -13,6 +13,7 @@ pub fn api_routes() -> Router<AppState> {
         // Project routes
         .route("/projects", get(handlers::list_projects))
         .route("/projects", post(handlers::create_project))
+        .route("/projects/sync", post(handlers::sync_cli_projects))
         .route("/projects/:id", get(handlers::get_project))
         .route("/projects/:id", delete(handlers::delete_project))
         // File routes

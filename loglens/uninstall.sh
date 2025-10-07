@@ -1,38 +1,66 @@
 #!/bin/bash
 
 # LogLens Uninstallation Script
-# Removes LogLens from ~/.local/bin
+# Removes all LogLens components and data
+
+set -e  # Exit on any error
 
 echo "🗑️  LogLens Uninstallation Script"
 echo "================================"
 
-# Check if loglens is installed
+# Check if LogLens is installed
 if ! command -v loglens &> /dev/null; then
-    echo "ℹ️  LogLens is not installed or not in PATH"
-    exit 0
+    echo "⚠️  LogLens not found in PATH"
+else
+    echo "📍 Found LogLens at: $(which loglens)"
 fi
 
-LOGLENS_PATH=$(which loglens)
-echo "📍 Found LogLens at: $LOGLENS_PATH"
-
-# Stop any running processes
+# Stop running processes
 echo "🔄 Stopping any running LogLens processes..."
 pkill -f loglens || true
 sleep 1
 
-# Remove the executable
-if [[ -f "$LOGLENS_PATH" ]]; then
-    echo "🗑️  Removing $LOGLENS_PATH..."
-    rm -f "$LOGLENS_PATH"
-    
-    if [[ ! -f "$LOGLENS_PATH" ]]; then
-        echo "✅ LogLens successfully uninstalled"
-    else
-        echo "❌ Failed to remove LogLens"
-        exit 1
-    fi
-else
-    echo "⚠️  LogLens executable not found"
+# Stop systemd service if enabled
+if systemctl --user is-active --quiet loglens-mcp 2>/dev/null; then
+    echo "🔄 Stopping systemd service..."
+    systemctl --user stop loglens-mcp || true
 fi
 
-echo "🎉 Uninstallation complete!"
+if systemctl --user is-enabled --quiet loglens-mcp 2>/dev/null; then
+    echo "🔄 Disabling systemd service..."
+    systemctl --user disable loglens-mcp || true
+fi
+
+# Remove binary
+if [[ -f "$HOME/.local/bin/loglens" ]]; then
+    echo "🗑️  Removing binary from ~/.local/bin..."
+    rm -f "$HOME/.local/bin/loglens"
+fi
+
+# Remove data directory
+read -p "Remove data directory ~/.loglens? This will delete all databases and projects. (y/N): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "🗑️  Removing data directory..."
+    rm -rf ~/.loglens
+else
+    echo "📁 Keeping data directory ~/.loglens"
+fi
+
+# Remove systemd service file
+if [[ -f "$HOME/.config/systemd/user/loglens-mcp.service" ]]; then
+    echo "🗑️  Removing systemd service file..."
+    rm -f "$HOME/.config/systemd/user/loglens-mcp.service"
+    systemctl --user daemon-reload || true
+fi
+
+# Check PATH and suggest cleanup
+if [[ ":$PATH:" == *":$HOME/.local/bin:"* ]]; then
+    echo ""
+    echo "💡 Note: ~/.local/bin is still in your PATH"
+    echo "   If you want to remove it from PATH, edit your ~/.bashrc or ~/.zshrc"
+fi
+
+echo ""
+echo "✅ Uninstallation complete!"
+echo "   LogLens has been removed from your system"

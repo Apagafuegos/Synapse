@@ -12,6 +12,8 @@ import type {
 
 const API_BASE = '/api';
 
+console.log('API Service: API_BASE is set to:', API_BASE);
+
 class ApiError extends Error {
   constructor(
     message: string,
@@ -231,6 +233,14 @@ export const api = {
   analysis: analysisApi,
   dashboard: dashboardApi,
   system: systemApi,
+  
+  // Generic methods for custom requests
+  post: <T = any>(url: string, data?: any) => fetchApi<T>(url, {
+    method: 'POST',
+    body: data ? JSON.stringify(data) : undefined,
+  }),
+  
+  get: <T = any>(url: string) => fetchApi<T>(url),
 };
 
 export { ApiError };

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { Link } from 'react-router-dom';
-import { PlusIcon, FolderIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, FolderIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
 import { api, ApiError } from '@services/api';
 import LoadingSpinner from '@components/LoadingSpinner';
@@ -11,6 +11,7 @@ function Projects() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', description: '' });
   const [isCreating, setIsCreating] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
@@ -33,6 +34,26 @@ function Projects() {
       },
       onError: (err: ApiError) => {
         setError(err.message || 'Failed to create project');
+      },
+    }
+  );
+
+  const syncCliProjectsMutation = useMutation(
+    () => api.post<{synced: number, errors: number}>('/projects/sync'),
+    {
+      onSuccess: (response) => {
+        queryClient.invalidateQueries('projects');
+        const { synced, errors } = response;
+        if (synced > 0) {
+          setError(null);
+          // Optionally show success message
+        }
+        if (errors > 0) {
+          setError(`Synced ${synced} projects, but encountered ${errors} errors`);
+        }
+      },
+      onError: (err: ApiError) => {
+        setError(err.message || 'Failed to sync CLI projects');
       },
     }
   );
@@ -67,6 +88,17 @@ function Projects() {
     setError(null);
   };
 
+  const handleSyncCliProjects = async () => {
+    setIsSyncing(true);
+    try {
+      await syncCliProjectsMutation.mutateAsync();
+    } catch (err) {
+      // Error is handled by mutation onError
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-96">
@@ -85,14 +117,26 @@ function Projects() {
             Manage your log analysis projects and track their progress.
           </p>
         </div>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={() => setIsCreateModalOpen(true)}
-        >
-          <PlusIcon className="h-4 w-4 mr-2" aria-hidden="true" />
-          New Project
-        </button>
+        <div className="flex space-x-3">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={handleSyncCliProjects}
+            disabled={isSyncing}
+            title="Import CLI projects from workspace"
+          >
+            <ArrowPathIcon className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} aria-hidden="true" />
+            {isSyncing ? 'Syncing...' : 'Sync CLI Projects'}
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setIsCreateModalOpen(true)}
+          >
+            <PlusIcon className="h-4 w-4 mr-2" aria-hidden="true" />
+            New Project
+          </button>
+        </div>
       </div>
 
       {/* Search and filters */}
@@ -154,12 +198,27 @@ function Projects() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredProjects.map((project) => (
-            <Link
-              key={project.id}
-              to={`/projects/${project.id}`}
-              className="card hover:shadow-md transition-shadow group"
-            >
+          {filteredProjects.map((project) => {
+            console.log('Projects: Rendering project card for:', {
+              id: project.id,
+              name: project.name,
+              type: project.project_type,
+              hasId: !!project.id,
+              idType: typeof project.id
+            });
+            return (
+              <Link
+                key={project.id}
+                to={`/projects/${project.id}`}
+                className="card hover:shadow-md transition-shadow group"
+                onClick={() => {
+                  console.log('Projects: Clicking project:', {
+                    id: project.id,
+                    name: project.name,
+                    navigationTarget: `/projects/${project.id}`
+                  });
+                }}
+              >
               <div className="card-body">
                 <div className="flex items-center space-x-3">
                   <div className="flex-shrink-0">
@@ -179,7 +238,18 @@ function Projects() {
 
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-                    <span>Created {new Date(project.created_at).toLocaleDateString()}</span>
+                    <div className="flex items-center space-x-2">
+                      <span>Created {new Date(project.created_at).toLocaleDateString()}</span>
+                      {project.project_type && (
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          project.project_type === 'cli' 
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                            : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                        }`}>
+                          {project.project_type.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
                     {project.analysis_count !== undefined && (
                       <span>{project.analysis_count} analyses</span>
                     )}
@@ -187,7 +257,8 @@ function Projects() {
                 </div>
               </div>
             </Link>
-          ))}
+            );
+          })}
         </div>
       )}
 

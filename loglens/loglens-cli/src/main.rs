@@ -11,8 +11,24 @@ use tracing_subscriber;
 #[command(about = "AI-powered log analysis with project integration", long_about = None)]
 #[command(version)]
 struct Cli {
+    /// Start the web dashboard
+    #[arg(long)]
+    dashboard: bool,
+
+    /// Dashboard port (default: 3000)
+    #[arg(long, default_value = "3000")]
+    port: u16,
+
+    /// Start MCP server
+    #[arg(long)]
+    mcp_server: bool,
+
+    /// MCP server port (default: 3001)
+    #[arg(long, default_value = "3001")]
+    mcp_port: u16,
+
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -62,7 +78,42 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    match cli.command {
+    // Handle dashboard flag
+    if cli.dashboard {
+        info!("Starting web dashboard on port {}", cli.port);
+        
+        // Set environment for dashboard
+        std::env::set_var("PORT", &cli.port.to_string());
+        
+        // Start web server
+        if let Err(e) = start_dashboard().await {
+            error!("Failed to start dashboard: {}", e);
+            eprintln!("❌ Failed to start dashboard: {}", e);
+            std::process::exit(1);
+        }
+        
+        return Ok(());
+    }
+
+    // Handle MCP server flag
+    if cli.mcp_server {
+        info!("Starting MCP server on port {}", cli.mcp_port);
+        
+        // Set environment for MCP server
+        std::env::set_var("MCP_PORT", &cli.mcp_port.to_string());
+        
+        // Start MCP server
+        if let Err(e) = start_mcp_server().await {
+            error!("Failed to start MCP server: {}", e);
+            eprintln!("❌ Failed to start MCP server: {}", e);
+            std::process::exit(1);
+        }
+        
+        return Ok(());
+    }
+
+    // Handle subcommands
+    match cli.command.unwrap_or(Commands::ListProjects) {
         Commands::Init { path } => {
             info!("Initializing LogLens project...");
 
@@ -83,6 +134,7 @@ async fn main() -> Result<()> {
                     println!("\nNext steps:");
                     println!("  - Add log files for analysis");
                     println!("  - Configure AI provider in config.toml");
+                    println!("  - Start dashboard: loglens --dashboard");
                     println!("  - Start MCP server: loglens --mcp-server");
 
                     Ok(())
@@ -109,7 +161,7 @@ async fn main() -> Result<()> {
                     println!("  Name:       {}", result.project_name);
                     println!("  ID:         {}", result.project_id);
                     println!("  Location:   {}", result.root_path.display());
-                    println!("\nThe project is now registered in the global registry.");
+                    println!("\nThe project is now registered in the global registry and will appear in the dashboard.");
                     Ok(())
                 }
                 Err(e) => {
@@ -155,6 +207,7 @@ async fn main() -> Result<()> {
                     if projects.is_empty() {
                         println!("\nNo linked LogLens projects found.");
                         println!("\nRun 'loglens init' in a project directory to get started.");
+                        println!("Then use 'loglens link' to register it in the dashboard.");
                     } else {
                         println!("\nLinked LogLens Projects:");
                         println!("┌{:─<40}┬{:─<60}┬{:─<25}┐", "", "", "");
@@ -184,6 +237,7 @@ async fn main() -> Result<()> {
 
                         println!("└{:─<40}┴{:─<60}┴{:─<25}┘", "", "", "");
                         println!("\nTotal: {} projects", projects.len());
+                        println!("Start the dashboard to view: loglens --dashboard");
                     }
 
                     Ok(())
@@ -281,6 +335,40 @@ async fn main() -> Result<()> {
             }
         }
     }
+}
+
+/// Start the web dashboard
+async fn start_dashboard() -> Result<()> {
+    // Import the web server functionality
+    // This assumes the web server is exposed as a library function
+    use loglens_web::start_server;
+    
+    let port = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(3000);
+    
+    println!("🚀 Starting LogLens dashboard on http://127.0.0.1:{}", port);
+    println!("   Press Ctrl+C to stop");
+    
+    start_server(port).await
+}
+
+/// Start the MCP server
+async fn start_mcp_server() -> Result<()> {
+    // Import the MCP server functionality
+    use loglens_core::mcp_server::start_server;
+    
+    let port = std::env::var("MCP_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(3001);
+    
+    println!("🔗 Starting LogLens MCP server on port {}", port);
+    println!("   Tools available: analyze_logs, parse_logs, filter_logs");
+    println!("   Press Ctrl+C to stop");
+    
+    start_server(port).await
 }
 
 /// Format a timestamp as a human-readable "time ago" string

@@ -3,6 +3,10 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
+  root_path?: string;        // CLI project field
+  loglens_config?: string;   // CLI project configuration
+  project_type?: string;     // CLI project type (web, cli, unknown)
+  last_accessed?: string;    // CLI project access tracking
   created_at: string;
   updated_at: string;
   analysis_count?: number;

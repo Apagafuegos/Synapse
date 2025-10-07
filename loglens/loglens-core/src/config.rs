@@ -77,6 +77,16 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Get the unified LogLens data directory
+    pub fn get_data_dir() -> PathBuf {
+        crate::db_path::get_data_dir()
+    }
+
+    /// Get the unified database path
+    pub fn get_database_path() -> PathBuf {
+        crate::db_path::get_database_path()
+    }
+
     pub fn load() -> Result<Self> {
         // Try to load from config file first
         if let Some(config_path) = Self::get_config_path() {

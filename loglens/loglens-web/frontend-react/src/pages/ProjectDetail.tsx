@@ -19,7 +19,12 @@ import NotFound from '@pages/NotFound';
 import type { LogFile, Analysis } from '@/types';
 
 function ProjectDetail() {
-  const { id } = useParams<{ id: string }>();
+  const { projectId } = useParams<{ projectId: string }>();
+  console.log('ProjectDetail: URL params from useParams():', { projectId, allParams: useParams() });
+  console.log('ProjectDetail: Current URL:', window.location.href);
+  console.log('ProjectDetail: Current pathname:', window.location.pathname);
+  console.log('ProjectDetail: Using projectId instead of projectId:', projectId);
+  
   const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -40,11 +45,19 @@ function ProjectDetail() {
     isLoading: projectLoading, 
     error: projectError 
   } = useQuery(
-    ['project', id], 
-    () => id ? api.projects.getById(id) : Promise.reject('No project ID'),
+    ['project', projectId], 
+    () => {
+      if (!projectId) return Promise.reject('No project ID');
+      console.log('ProjectDetail: Fetching project with ID:', projectId);
+      return api.projects.getById(projectId);
+    },
     {
-      enabled: !!id,
-      retry: false
+      enabled: !!projectId,
+      retry: false,
+      onError: (error) => {
+        console.error('ProjectDetail: Failed to fetch project:', error);
+        console.error('ProjectDetail: Project ID was:', projectId);
+      }
     }
   );
 
@@ -55,10 +68,10 @@ function ProjectDetail() {
     error: filesError,
     refetch: refetchFiles 
   } = useQuery(
-    ['project-files', id], 
-    () => id ? api.files.getByProject(id) : Promise.resolve([]),
+    ['project-files', projectId], 
+    () => projectId ? api.files.getByProject(projectId) : Promise.resolve([]),
     {
-      enabled: !!id && !!project
+      enabled: !!projectId && !!project
     }
   );
 
@@ -68,10 +81,10 @@ function ProjectDetail() {
     isLoading: analysesLoading, 
     error: analysesError 
   } = useQuery(
-    ['project-analyses', id], 
-    () => id ? api.analysis.getByProject(id) : Promise.resolve({ analyses: [], pagination: { page: 1, per_page: 20, total: 0 } }),
+    ['project-analyses', projectId], 
+    () => projectId ? api.analysis.getByProject(projectId) : Promise.resolve({ analyses: [], pagination: { page: 1, per_page: 20, total: 0 } }),
     {
-      enabled: !!id && !!project,
+      enabled: !!projectId && !!project,
       // Add refetch interval when there are running analyses
       refetchInterval: (data) => {
         const hasRunningAnalysis = data?.analyses?.some(analysis => 
@@ -87,10 +100,10 @@ function ProjectDetail() {
 
   // Upload file mutation
   const uploadFileMutation = useMutation(
-    (file: File) => id ? api.files.upload(id, file) : Promise.reject('No project ID'),
+    (file: File) => projectId ? api.files.upload(projectId, file) : Promise.reject('No project ID'),
     {
       onSuccess: () => {
-        if (id) queryClient.invalidateQueries(['project-files', id]);
+        if (projectId) queryClient.invalidateQueries(['project-files', projectId]);
         setSelectedFile(null);
         setUploadError(null);
       },
@@ -102,7 +115,7 @@ function ProjectDetail() {
 
   // Create analysis mutation
   const createAnalysisMutation = useMutation(
-    ({ fileId, options }: { fileId: string; options?: { userContext?: string; timeoutSeconds?: number } }) => id ? api.analysis.create(id, fileId, {
+    ({ fileId, options }: { fileId: string; options?: { userContext?: string; timeoutSeconds?: number } }) => projectId ? api.analysis.create(projectId, fileId, {
       provider: getProvider(),
       level: getLevel(),
       user_context: options?.userContext,
@@ -110,7 +123,7 @@ function ProjectDetail() {
     }) : Promise.reject('No project ID'),
     {
       onSuccess: () => {
-        if (id) queryClient.invalidateQueries(['project-analyses', id]);
+        if (projectId) queryClient.invalidateQueries(['project-analyses', projectId]);
         setAnalysisError(null);
         // Reset analysis options
         setUserContext('');
@@ -125,10 +138,10 @@ function ProjectDetail() {
 
   // Delete file mutation
   const deleteFileMutation = useMutation(
-    (fileId: string) => id ? api.files.delete(id, fileId) : Promise.reject('No project ID'),
+    (fileId: string) => projectId ? api.files.delete(projectId, fileId) : Promise.reject('No project ID'),
     {
       onSuccess: () => {
-        if (id) queryClient.invalidateQueries(['project-files', id]);
+        if (projectId) queryClient.invalidateQueries(['project-files', projectId]);
       },
       onError: (err: ApiError) => {
         console.error('Failed to delete file:', err);
@@ -145,7 +158,7 @@ function ProjectDetail() {
   };
 
   const handleUpload = async () => {
-    if (!selectedFile || !id) return;
+    if (!selectedFile || !projectId) return;
 
     setIsUploading(true);
     try {
@@ -240,6 +253,10 @@ function ProjectDetail() {
 
   // Handle project not found or error
   if (projectError || !project) {
+    console.log('ProjectDetail: Showing NotFound component');
+    console.log('ProjectDetail: projectError:', projectError);
+    console.log('ProjectDetail: project:', project);
+    console.log('ProjectDetail: projectId:', projectId);
     return <NotFound />;
   }
 
@@ -373,7 +390,7 @@ function ProjectDetail() {
         ) : files && files.length > 0 ? (
           <div className="space-y-4">
             {files.map((file: LogFile) => (
-              <div key={file.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <div key={file.project_id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <DocumentTextIcon className="h-5 w-5 text-gray-400" />
@@ -391,8 +408,8 @@ function ProjectDetail() {
                   <div className="flex items-center space-x-2">
                     <button
                       type="button"
-                      onClick={() => setShowAnalysisOptions(showAnalysisOptions === file.id ? null : file.id)}
-                      disabled={analyzingFiles.has(file.id) || settingsLoading || !isConfigured()}
+                      onClick={() => setShowAnalysisOptions(showAnalysisOptions === file.project_id ? null : file.project_id)}
+                      disabled={analyzingFiles.has(file.project_id) || settingsLoading || !isConfigured()}
                       className="btn-secondary"
                       title={!isConfigured() ? `Configure ${getProvider()} provider in Settings` : 'Analysis options'}
                     >
@@ -403,16 +420,16 @@ function ProjectDetail() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleStartAnalysis(file.id, {
+                      onClick={() => handleStartAnalysis(file.project_id, {
                         userContext: userContext || undefined,
                         timeoutSeconds: timeoutSeconds
                       })}
-                      disabled={analyzingFiles.has(file.id) || settingsLoading || !isConfigured()}
+                      disabled={analyzingFiles.has(file.project_id) || settingsLoading || !isConfigured()}
                       className="btn-primary"
                       title={!isConfigured() ? `Configure ${getProvider()} provider in Settings` : `Analyze with ${getProvider()}`}
                     >
                       <ChartBarIcon className="h-4 w-4 mr-1" />
-                      {analyzingFiles.has(file.id) 
+                      {analyzingFiles.has(file.project_id) 
                         ? 'Analyzing...' 
                         : settingsLoading 
                         ? 'Loading...' 
@@ -420,7 +437,7 @@ function ProjectDetail() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDeleteFile(file.id)}
+                      onClick={() => handleDeleteFile(file.project_id)}
                       className="btn-secondary"
                     >
                       <TrashIcon className="h-4 w-4 mr-1" />
@@ -430,7 +447,7 @@ function ProjectDetail() {
                 </div>
                 
                 {/* Analysis Options Panel */}
-                {showAnalysisOptions === file.id && (
+                {showAnalysisOptions === file.project_id && (
                   <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg space-y-4">
                     <h4 className="text-sm font-medium text-gray-900 dark:text-white">Analysis Options</h4>
                     

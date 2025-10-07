@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebConfig {
@@ -15,18 +16,32 @@ pub struct WebConfig {
 
 impl Default for WebConfig {
     fn default() -> Self {
-        // Use absolute path for database to avoid issues with working directory
-        let project_root = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
-        let db_path = format!("{}/data/loglens.db", project_root);
-        
+        // Use unified database path from loglens-core
+        let db_path = loglens_core::db_path::get_database_path();
+        let db_path_str = db_path.to_string_lossy().to_string();
+
         Self {
             port: 3000,
-            database_url: format!("sqlite://{}", db_path),
+            database_url: format!("sqlite://{}", db_path_str),
             max_upload_size: 50 * 1024 * 1024, // 50MB
             max_projects: 100,
             analysis_timeout_secs: 300, // 5 minutes
             cors_origins: vec!["http://localhost:3000".to_string()],
-            frontend_dir: "loglens-web/frontend-react/dist".to_string(),
+            // Frontend directory - check multiple locations
+            frontend_dir: {
+                // Check if running from installed binary
+                if let Ok(exe_path) = std::env::current_exe() {
+                    let install_dir = exe_path.parent().unwrap_or_else(|| Path::new("."));
+                    let frontend_path = install_dir.join("frontend");
+                    if frontend_path.exists() {
+                        frontend_path.to_string_lossy().to_string()
+                    } else {
+                        "loglens-web/frontend-react/dist".to_string()
+                    }
+                } else {
+                    "loglens-web/frontend-react/dist".to_string()
+                }
+            },
             upload_dir: "./uploads".to_string(),
         }
     }
@@ -37,15 +52,15 @@ impl WebConfig {
         let mut config = Self::default();
 
         // Load from environment variables
-        if let Ok(port) = env::var("LOGLENS_PORT") {
+        if let Ok(port) = env::var("LOGLENS_PORT").or_else(|_| env::var("PORT")) {
             config.port = port.parse()?;
         }
 
-        // Try LOGLENS_DATABASE_URL first, then DATABASE_URL for backward compatibility
-        if let Ok(db_url) = env::var("LOGLENS_DATABASE_URL") {
-            config.database_url = db_url;
-        } else if let Ok(db_url) = env::var("DATABASE_URL") {
-            config.database_url = db_url;
+        // Allow override with DATABASE_URL or LOGLENS_DATABASE_PATH if needed
+        if let Ok(database_url) = env::var("DATABASE_URL") {
+            config.database_url = database_url;
+        } else if let Ok(db_path) = env::var("LOGLENS_DATABASE_PATH") {
+            config.database_url = format!("sqlite://{}", db_path);
         }
 
         if let Ok(max_size) = env::var("LOGLENS_MAX_UPLOAD_SIZE") {

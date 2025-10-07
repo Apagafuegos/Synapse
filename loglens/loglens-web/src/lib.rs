@@ -305,6 +305,70 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 
+/// Start the web server with the given port
+pub async fn start_server(port: u16) -> anyhow::Result<()> {
+    use axum::{extract::DefaultBodyLimit, routing::get, Router};
+    use std::net::SocketAddr;
+    use std::path::PathBuf;
+    use tokio::net::TcpListener;
+    use tower::ServiceBuilder;
+    use tower_http::{cors::CorsLayer, trace::TraceLayer, services::{ServeDir, ServeFile}};
+
+    // Load .env file if it exists
+    dotenv::dotenv().ok();
+
+    // Initialize tracing (only if not already initialized)
+    // Use try_init() to avoid panic when called from CLI which already initializes tracing
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
+
+    tracing::info!("Starting LogLens web server on port {}", port);
+
+    // Load configuration
+    let mut config = WebConfig::load()?;
+    config.port = port;
+
+    // Determine frontend directory path
+    let frontend_path = PathBuf::from(&config.frontend_dir);
+    let index_path = frontend_path.join("index.html");
+
+    tracing::info!("Serving frontend from: {}", frontend_path.display());
+
+    // Create application state
+    let state = AppState::new(config.clone()).await?;
+
+    // Build router with proper SPA fallback
+    let app = Router::new()
+        .route("/api/health", get(handlers::dashboard::get_dashboard_stats))
+        .nest("/api", routes::api_routes())
+        .nest_service(
+            "/",
+            ServeDir::new(&frontend_path)
+                .not_found_service(ServeFile::new(&index_path))
+        )
+        .fallback_service(
+            ServeFile::new(&index_path)
+        )
+        .layer(ServiceBuilder::new()
+            .layer(TraceLayer::new_for_http())
+            .layer(CorsLayer::permissive())
+            .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50MB
+        )
+        .with_state(state);
+
+    // Create server
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let listener = TcpListener::bind(addr).await?;
+    
+    tracing::info!("Server listening on http://{}", addr);
+    
+    // Start server
+    axum::serve(listener, app).await?;
+    
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

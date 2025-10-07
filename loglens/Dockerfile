@@ -16,6 +16,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY loglens-core ./loglens-core
 COPY loglens-wasm ./loglens-wasm
 COPY loglens-web ./loglens-web
+COPY loglens-cli ./loglens-cli
 
 # Build WASM package
 WORKDIR /build/loglens-wasm
@@ -61,6 +62,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY loglens-core ./loglens-core
 COPY loglens-wasm ./loglens-wasm
 COPY loglens-web ./loglens-web
+COPY loglens-cli ./loglens-cli
 
 # Copy sqlx offline data for compile-time query verification
 COPY .sqlx ./.sqlx

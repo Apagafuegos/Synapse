@@ -325,7 +325,7 @@ mod tests {
         assert!(table_names.contains(&"analysis_results".to_string()));
 
         // Cleanup
-        let mut registry = super::registry::ProjectRegistry::load().unwrap();
+        let mut registry = crate::project::registry::ProjectRegistry::load().unwrap();
         registry.unregister_project(&result.project_id).unwrap();
     }
 }

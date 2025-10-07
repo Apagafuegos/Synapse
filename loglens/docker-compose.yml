@@ -1,26 +1,81 @@
-version: '3.8'
-
 services:
-  loglens:
+  # Web Dashboard Service
+  loglens-dashboard:
     build:
       context: .
       dockerfile: Dockerfile
     image: loglens:latest
-    container_name: loglens
+    container_name: loglens-dashboard
     ports:
-      - "3000:3000"
+      - "8080:8080"
     volumes:
-      # Persist database
-      - ./data:/app/data
-      # Persist uploaded files
-      - ./uploads:/app/uploads
+      # Persist database and project data
+      - loglens-data:/home/user/.loglens/data
+      # Persist uploaded log files
+      - loglens-uploads:/app/uploads
     environment:
-      # Database configuration
-      - LOGLENS_DATABASE_URL=sqlite:/app/data/loglens.db
+      # Database Configuration
+      - DATABASE_URL=sqlite:/home/user/.loglens/data/loglens.db
+      - LOGLENS_DATA_DIR=/home/user/.loglens/data
 
-      # Server configuration
-      - PORT=3000
+      # Server Configuration
+      - HOST=0.0.0.0
+      - PORT=8080
       - WORKERS=4
+
+      # AI Provider API Keys (optional - add your keys)
+      # Get keys from: https://openrouter.ai, https://platform.openai.com, etc.
+      # - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # - GEMINI_API_KEY=${GEMINI_API_KEY}
+
+      # Cache Configuration
+      - CACHE_ENABLED=true
+      - CACHE_TTL=3600
+      - CACHE_MAX_ENTRIES=1000
+
+      # Performance Settings
+      - MAX_FILE_SIZE=52428800          # 50MB in bytes
+      - MAX_ANALYSIS_LINES=50000
+
+      # Logging Configuration
+      - RUST_LOG=info
+
+      # Path Configuration
+      - LOGLENS_FRONTEND_DIR=/app/frontend-react/dist
+      - LOGLENS_UPLOAD_DIR=/app/uploads
+
+    restart: unless-stopped
+    command: ["./loglens-web"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # MCP Server Service (HTTP + stdio)
+  loglens-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: loglens:latest
+    container_name: loglens-mcp
+    ports:
+      - "3001:3001"
+    volumes:
+      # Share the same data directory with dashboard
+      - loglens-data:/home/user/.loglens/data
+      - loglens-uploads:/app/uploads
+    environment:
+      # Database Configuration (shared with dashboard)
+      - DATABASE_URL=sqlite:/home/user/.loglens/data/loglens.db
+      - LOGLENS_DATA_DIR=/home/user/.loglens/data
+
+      # MCP Server Configuration
+      - PORT=3001
+      - MCP_HOST=0.0.0.0
 
       # AI Provider API Keys (optional - add your keys)
       # - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
@@ -28,32 +83,59 @@ services:
       # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       # - GEMINI_API_KEY=${GEMINI_API_KEY}
 
-      # Cache configuration
-      - CACHE_ENABLED=true
-      - CACHE_TTL=3600
-      - CACHE_MAX_ENTRIES=1000
-
-      # Performance settings
-      - MAX_FILE_SIZE=52428800
-      - MAX_ANALYSIS_LINES=50000
-
-      # Logging
+      # Logging Configuration
       - RUST_LOG=info
 
-      # Frontend path configuration
-      - LOGLENS_FRONTEND_DIR=/app/frontend-react/dist
-      - LOGLENS_UPLOAD_DIR=/app/uploads
     restart: unless-stopped
+    command: ["./loglens-web"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
 
-# Create named volumes for persistence
+  # CLI Helper Service (optional, for ad-hoc commands)
+  loglens-cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: loglens:latest
+    container_name: loglens-cli
+    volumes:
+      # Share the same data directory
+      - loglens-data:/home/user/.loglens/data
+      - loglens-uploads:/app/uploads
+      # Mount current working directory for log file access
+      - ./logs:/workspace/logs:ro
+    environment:
+      # Database Configuration (shared)
+      - DATABASE_URL=sqlite:/home/user/.loglens/data/loglens.db
+      - LOGLENS_DATA_DIR=/home/user/.loglens/data
+
+      # AI Provider API Keys (optional)
+      # - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # - GEMINI_API_KEY=${GEMINI_API_KEY}
+
+      # Logging Configuration
+      - RUST_LOG=info
+
+    # Keep container running for interactive use
+    command: ["tail", "-f", "/dev/null"]
+    profiles:
+      - cli  # Only start with --profile cli
+
+# Named volumes for data persistence
 volumes:
-  data:
+  loglens-data:
     driver: local
-  uploads:
+  loglens-uploads:
     driver: local
+
+# Network configuration
+networks:
+  default:
+    name: loglens-network
+    driver: bridge
