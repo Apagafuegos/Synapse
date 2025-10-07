@@ -7,7 +7,7 @@ services:
     image: loglens:latest
     container_name: loglens-dashboard
     ports:
-      - "8080:8080"
+      - "3000:3000"
     volumes:
       # Persist database and project data
       - loglens-data:/home/user/.loglens/data
@@ -20,15 +20,8 @@ services:
 
       # Server Configuration
       - HOST=0.0.0.0
-      - PORT=8080
+      - PORT=3000
       - WORKERS=4
-
-      # AI Provider API Keys (optional - add your keys)
-      # Get keys from: https://openrouter.ai, https://platform.openai.com, etc.
-      # - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      # - OPENAI_API_KEY=${OPENAI_API_KEY}
-      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      # - GEMINI_API_KEY=${GEMINI_API_KEY}
 
       # Cache Configuration
       - CACHE_ENABLED=true
@@ -49,7 +42,7 @@ services:
     restart: unless-stopped
     command: ["./loglens-web"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -76,12 +69,6 @@ services:
       # MCP Server Configuration
       - PORT=3001
       - MCP_HOST=0.0.0.0
-
-      # AI Provider API Keys (optional - add your keys)
-      # - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      # - OPENAI_API_KEY=${OPENAI_API_KEY}
-      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      # - GEMINI_API_KEY=${GEMINI_API_KEY}
 
       # Logging Configuration
       - RUST_LOG=info
