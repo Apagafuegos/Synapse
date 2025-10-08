@@ -390,7 +390,7 @@ function ProjectDetail() {
         ) : files && files.length > 0 ? (
           <div className="space-y-4">
             {files.map((file: LogFile) => (
-              <div key={file.project_id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <div key={file.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <DocumentTextIcon className="h-5 w-5 text-gray-400" />
@@ -408,8 +408,8 @@ function ProjectDetail() {
                   <div className="flex items-center space-x-2">
                     <button
                       type="button"
-                      onClick={() => setShowAnalysisOptions(showAnalysisOptions === file.project_id ? null : file.project_id)}
-                      disabled={analyzingFiles.has(file.project_id) || settingsLoading || !isConfigured()}
+                      onClick={() => setShowAnalysisOptions(showAnalysisOptions === file.id ? null : file.id)}
+                      disabled={analyzingFiles.has(file.id) || settingsLoading || !isConfigured()}
                       className="btn-secondary"
                       title={!isConfigured() ? `Configure ${getProvider()} provider in Settings` : 'Analysis options'}
                     >
@@ -420,24 +420,24 @@ function ProjectDetail() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleStartAnalysis(file.project_id, {
+                      onClick={() => handleStartAnalysis(file.id, {
                         userContext: userContext || undefined,
                         timeoutSeconds: timeoutSeconds
                       })}
-                      disabled={analyzingFiles.has(file.project_id) || settingsLoading || !isConfigured()}
+                      disabled={analyzingFiles.has(file.id) || settingsLoading || !isConfigured()}
                       className="btn-primary"
                       title={!isConfigured() ? `Configure ${getProvider()} provider in Settings` : `Analyze with ${getProvider()}`}
                     >
                       <ChartBarIcon className="h-4 w-4 mr-1" />
-                      {analyzingFiles.has(file.project_id) 
-                        ? 'Analyzing...' 
-                        : settingsLoading 
-                        ? 'Loading...' 
+                      {analyzingFiles.has(file.id)
+                        ? 'Analyzing...'
+                        : settingsLoading
+                        ? 'Loading...'
                         : `Analyze (${getProvider()})`}
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDeleteFile(file.project_id)}
+                      onClick={() => handleDeleteFile(file.id)}
                       className="btn-secondary"
                     >
                       <TrashIcon className="h-4 w-4 mr-1" />
@@ -445,9 +445,9 @@ function ProjectDetail() {
                     </button>
                   </div>
                 </div>
-                
+
                 {/* Analysis Options Panel */}
-                {showAnalysisOptions === file.project_id && (
+                {showAnalysisOptions === file.id && (
                   <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg space-y-4">
                     <h4 className="text-sm font-medium text-gray-900 dark:text-white">Analysis Options</h4>
                     

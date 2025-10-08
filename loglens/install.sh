@@ -16,12 +16,32 @@ fi
 
 # Check if Rust/Cargo is installed
 if ! command -v cargo &> /dev/null; then
-    echo "❌ Error: Cargo not found. Please install Rust:"
-    echo "   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-    exit 1
+    echo "❌ Cargo not found. Installing Rust..."
+    echo "📥 Downloading and installing Rust via rustup..."
+    
+    # Check if curl is available
+    if command -v curl &> /dev/null; then
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        # Source cargo environment
+        source "$HOME/.cargo/env"
+        
+        # Verify installation
+        if command -v cargo &> /dev/null; then
+            echo "✅ Rust installed successfully!"
+            echo "📍 Location: $(which cargo)"
+        else
+            echo "❌ Error: Rust installation failed"
+            echo "   Please install manually: https://rustup.rs/"
+            exit 1
+        fi
+    else
+        echo "❌ Error: curl not found. Cannot install Rust automatically"
+        echo "   Please install Rust manually: https://rustup.rs/"
+        exit 1
+    fi
+else
+    echo "✅ Found Cargo: $(cargo --version)"
 fi
-
-echo "✅ Found Cargo: $(cargo --version)"
 
 # Create LogLens data directory
 echo "📁 Creating LogLens data directory..."
@@ -154,6 +174,14 @@ if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
     echo ""
 fi
 
+# Check if Cargo bin is in PATH (for newly installed Rust)
+if [[ ":$PATH:" != *":$HOME/.cargo/bin:"* ]]; then
+    echo "⚠️  Warning: ~/.cargo/bin is not in your PATH"
+    echo "   Add this line to your ~/.bashrc or ~/.zshrc:"
+    echo "   export PATH=\"\$HOME/.cargo/bin:\$PATH\""
+    echo ""
+fi
+
 # Test installation
 echo "🧪 Testing installation..."
 if command -v loglens &> /dev/null; then
@@ -164,16 +192,21 @@ if command -v loglens &> /dev/null; then
     echo "  loglens --help                    # Show help"
     echo "  loglens --file /var/log/app.log   # Analyze log file"
     echo "  loglens --dashboard               # Start web dashboard"
-    echo "  loglens --mcp-server              # Start MCP server"
+    echo "  loglens --mcp-server              # Start MCP server (stdio mode)"
+    echo "  loglens --mcp-server --mcp-transport http  # Start MCP server (HTTP mode)"
+    echo "  loglens --mcp-server --mcp-port 8080       # Start MCP server on custom port"
     echo "  loglens init                      # Initialize project"
     echo ""
     echo "Data directory: ~/.loglens/data"
     echo "Configuration: ~/.loglens/config/config.toml"
     echo ""
     echo "MCP Server tools available:"
-    echo "  - analyze_logs: AI-powered log analysis"
-    echo "  - parse_logs: Parse raw logs into structured format"
-    echo "  - filter_logs: Filter logs by level and patterns"
+    echo "  - list_projects: List available LogLens projects"
+    echo "  - get_project: Get detailed project information"
+    echo "  - list_analyses: List analyses for a project"
+    echo "  - get_analysis: Get complete analysis results"
+    echo "  - get_analysis_status: Get analysis status for polling"
+    echo "  - analyze_file: Trigger new analysis on existing file"
     echo ""
     echo "Docker usage:"
     echo "  docker run -p 8080:8080 -v ~/.loglens/data:/app/data loglens --dashboard"

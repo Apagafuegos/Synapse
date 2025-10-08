@@ -89,9 +89,21 @@ pub fn parse_single_log_line(line: &str, timestamp_regex: &Regex) -> LogEntry {
     }
 }
 
+/// Strip ANSI escape codes from a string
+/// Examples: "\x1b[31mERROR\x1b[0;39m" -> "ERROR"
+fn strip_ansi_codes(text: &str) -> String {
+    // ANSI escape codes follow the pattern: ESC[...m where ESC is \x1b
+    // We need to remove: \x1b[<any chars>m
+    let ansi_regex = Regex::new(r"\x1b\[[0-9;]*m").unwrap();
+    ansi_regex.replace_all(text, "").to_string()
+}
+
 pub fn normalize_log_level(line: &str) -> Option<String> {
+    // Strip ANSI escape codes first (e.g., [31mERROR[0;39m -> ERROR)
+    let line_no_ansi = strip_ansi_codes(line);
+
     // Convert to uppercase for case-insensitive matching
-    let line_upper = line.to_uppercase();
+    let line_upper = line_no_ansi.to_uppercase();
 
     // Check for numeric log levels first (most specific - e.g., "Level: 1 Debug info" should match level 1, not "info")
     let numeric_patterns = [
@@ -126,8 +138,9 @@ pub fn normalize_log_level(line: &str) -> Option<String> {
         }
     }
 
-    // Check for colon-separated levels like "DEBUG: message" (check this before word boundaries to avoid false matches)
-    if let Ok(re) = Regex::new(r"^\s*(ERROR|ERR|FATAL|CRIT|CRITICAL|WARN|WARNING|INFO|INFORMATION|DEBUG|DBG|TRACE|TRC)\s*:") {
+    // Check for colon-separated levels ONLY at the start of the line like "DEBUG: message"
+    // This prevents "Debug information: trace" from matching
+    if let Ok(re) = Regex::new(r"^\s*(ERROR|ERR|FATAL|CRIT|CRITICAL|WARN|WARNING|INFO|INFORMATION|DEBUG|DBG|TRACE|TRC)\s*:\s") {
         if let Some(caps) = re.captures(&line_upper) {
             let level = &caps[1];
             match level {
@@ -142,26 +155,27 @@ pub fn normalize_log_level(line: &str) -> Option<String> {
         }
     }
 
-    // Define comprehensive patterns for different log levels - order matters for specificity
+    // Define patterns for different log levels - ONLY match formatted levels
+    // Order matters for specificity: more specific patterns first
     // FATAL/CRITICAL must come before ERROR to match "FATAL error occurred" correctly
     let level_patterns = [
-        // FATAL/CRITICAL patterns - check before ERROR
-        (vec![r"\bFATAL\b", r"\bCRIT\b", r"\bCRITICAL\b", r"\[FATAL\]", r"\(FATAL\)", r"\[CRIT\]", r"\(CRIT\)", r"\[CRITICAL\]", r"\(CRITICAL\)"], "FATAL"),
+        // FATAL/CRITICAL patterns - formatted only
+        (vec![r"\[FATAL\]", r"\(FATAL\)", r"\[CRIT\]", r"\(CRIT\)", r"\[CRITICAL\]", r"\(CRITICAL\)"], "FATAL"),
 
-        // ERROR patterns
-        (vec![r"\bERROR\b", r"\bERR\b", r"\[ERROR\]", r"\(ERROR\)", r"\[ERR\]", r"\(ERR\)"], "ERROR"),
+        // ERROR patterns - formatted only
+        (vec![r"\[ERROR\]", r"\(ERROR\)", r"\[ERR\]", r"\(ERR\)"], "ERROR"),
 
-        // WARN/WARNING patterns
-        (vec![r"\bWARN\b", r"\bWARNING\b", r"\[WARN\]", r"\(WARN\)", r"\[WARNING\]", r"\(WARNING\)"], "WARN"),
+        // WARN/WARNING patterns - formatted only
+        (vec![r"\[WARN\]", r"\(WARN\)", r"\[WARNING\]", r"\(WARNING\)"], "WARN"),
 
-        // INFO/INFORMATION patterns
-        (vec![r"\bINFO\b", r"\bINFORMATION\b", r"\[INFO\]", r"\(INFO\)", r"\[INFORMATION\]", r"\(INFORMATION\)"], "INFO"),
+        // INFO/INFORMATION patterns - formatted only
+        (vec![r"\[INFO\]", r"\(INFO\)", r"\[INFORMATION\]", r"\(INFORMATION\)"], "INFO"),
 
-        // DEBUG patterns
-        (vec![r"\bDEBUG\b", r"\bDBG\b", r"\[DEBUG\]", r"\(DEBUG\)", r"\[DBG\]", r"\(DBG\)"], "DEBUG"),
+        // DEBUG patterns - formatted only
+        (vec![r"\[DEBUG\]", r"\(DEBUG\)", r"\[DBG\]", r"\(DBG\)"], "DEBUG"),
 
-        // TRACE patterns
-        (vec![r"\bTRACE\b", r"\bTRC\b", r"\[TRACE\]", r"\(TRACE\)", r"\[TRC\]", r"\(TRC\)"], "TRACE"),
+        // TRACE patterns - formatted only
+        (vec![r"\[TRACE\]", r"\(TRACE\)", r"\[TRC\]", r"\(TRC\)"], "TRACE"),
     ];
 
     // Try each pattern group
@@ -170,6 +184,42 @@ pub fn normalize_log_level(line: &str) -> Option<String> {
             if let Ok(re) = Regex::new(pattern) {
                 if re.is_match(&line_upper) {
                     return Some(normalized_level.to_string());
+                }
+            }
+        }
+    }
+
+    // Check for standalone ALL-CAPS log levels (not in brackets/parens, not with colons)
+    // These must be ENTIRE WORDS in ALL CAPS followed by space or bracket
+    // Examples that match: "ERROR something", "2024-01-01 ERROR [main]", "INFO test"
+    // Examples that DON'T match: "Debug information", "error occurred", "The error message"
+    //
+    // Strategy: Find the level keyword in the line, then check if it's actually all-caps in original
+    let standalone_patterns = [
+        (r"\b(FATAL|CRIT|CRITICAL)\s+", "FATAL"),
+        (r"\b(ERROR|ERR)\s+", "ERROR"),
+        (r"\b(WARN|WARNING)\s+", "WARN"),
+        (r"\bINFO\s+", "INFO"),
+        (r"\b(DEBUG|DBG)\s+", "DEBUG"),
+        (r"\b(TRACE|TRC)\s+", "TRACE"),
+    ];
+
+    for (pattern, normalized_level) in &standalone_patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(mat) = re.find(&line_upper) {
+                // Found a match in uppercase version - now verify it's actually uppercase in original (ANSI-stripped)
+                let match_start = mat.start();
+                let match_end = mat.end();
+
+                // Extract the same region from the ANSI-stripped line
+                if match_start < line_no_ansi.len() {
+                    let original_match = &line_no_ansi[match_start..match_end.min(line_no_ansi.len())];
+                    let level_word = original_match.trim().split_whitespace().next().unwrap_or("");
+
+                    // Only accept if the level word is ALL CAPS in the original
+                    if level_word == level_word.to_uppercase() && !level_word.is_empty() {
+                        return Some(normalized_level.to_string());
+                    }
                 }
             }
         }
@@ -306,10 +356,69 @@ mod tests {
     fn test_complex_log_parsing() {
         let complex_log = "2024-01-20T10:30:45.123Z [WARNING] [main] Database pool exhausted, retrying in 5s";
         let entries = parse_log_lines(&[complex_log.to_string()]);
-        
+
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].timestamp, Some("2024-01-20T10:30:45.123Z".to_string()));
         assert_eq!(entries[0].level, Some("WARN".to_string()));
         assert_eq!(entries[0].message, "Database pool exhausted, retrying in 5s");
+    }
+
+    #[test]
+    fn test_false_level_detection_in_message() {
+        // BUG TEST: These lines contain level keywords in message content
+        // but should NOT be detected as having those log levels
+        let test_cases = vec![
+            ("User provided invalid information about the account", None),
+            ("The system encountered an error in processing", None),
+            ("Debug information: trace level data", None),
+            ("Please trace the issue back to its source", None),
+            ("The error message was displayed to the user", None),
+            ("This message contains information for debugging", None),
+        ];
+
+        for (input, expected) in test_cases {
+            let result = normalize_log_level(input);
+            assert_eq!(result, expected,
+                      "BUG: Line '{}' incorrectly detected as {:?}, should be {:?}",
+                      input, result, expected);
+        }
+    }
+
+    #[test]
+    fn test_ansi_escape_code_stripping() {
+        // Test ANSI escape code removal from Spring Boot logs
+        let test_cases = vec![
+            // Actual Spring Boot format with ANSI codes
+            ("\x1b[2m2025-06-23 11:47:10.714\x1b[0;39m \x1b[31mERROR\x1b[0;39m \x1b[35m36\x1b[0;39m \x1b[2m---\x1b[0;39m \x1b[2m[nio-8080-exec-4]\x1b[0;39m", "ERROR"),
+            ("\x1b[31mERROR\x1b[0;39m Application startup failed", "ERROR"),
+            ("\x1b[33mWARN\x1b[0;39m Deprecated API usage", "WARN"),
+            ("\x1b[32mINFO\x1b[0;39m Server started successfully", "INFO"),
+            ("\x1b[36mDEBUG\x1b[0;39m Processing request", "DEBUG"),
+            ("\x1b[35mTRACE\x1b[0;39m Method entry", "TRACE"),
+            // Bracketed with ANSI codes
+            ("\x1b[2m\x1b[31m[ERROR]\x1b[0;39m\x1b[0;39m Connection failed", "ERROR"),
+        ];
+
+        for (input, expected_level) in test_cases {
+            let result = normalize_log_level(input);
+            assert_eq!(result.as_deref(), Some(expected_level),
+                      "Failed to detect level in ANSI-coded line: '{}'", input);
+        }
+    }
+
+    #[test]
+    fn test_strip_ansi_codes_function() {
+        let test_cases = vec![
+            ("\x1b[31mERROR\x1b[0;39m", "ERROR"),
+            ("\x1b[2m2025-06-23\x1b[0;39m", "2025-06-23"),
+            ("No ANSI codes here", "No ANSI codes here"),
+            ("\x1b[31m\x1b[1mMultiple\x1b[0m codes", "Multiple codes"),
+        ];
+
+        for (input, expected) in test_cases {
+            let result = strip_ansi_codes(input);
+            assert_eq!(result, expected,
+                      "Failed to strip ANSI codes from '{}'", input);
+        }
     }
 }

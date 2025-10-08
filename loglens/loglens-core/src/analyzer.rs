@@ -1,14 +1,14 @@
 use crate::ai_provider::{
-    AIProvider, AnalysisRequest, AnalysisResponse, AnalysisFocus, RootCauseAnalysis,
-    ErrorAnalysis, PatternAnalysisSimple, PerformanceAnalysisSimple, AnomalyAnalysisSimple
+    AIProvider, AnalysisFocus, AnalysisRequest, AnalysisResponse, AnomalyAnalysisSimple,
+    ErrorAnalysis, PatternAnalysisSimple, PerformanceAnalysisSimple, RootCauseAnalysis,
 };
-use crate::context_manager::ContextManager;
 use crate::classification::ErrorCategory;
+use crate::context_manager::ContextManager;
 use crate::input::LogEntry;
 use crate::slimmer::{slim_logs_with_mode, SlimmingMode};
 use anyhow::Result;
 use std::collections::HashMap;
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
 #[derive(Debug, Clone, PartialEq)]
 enum ProcessingStrategy {
@@ -90,7 +90,8 @@ impl Analyzer {
 
     /// Estimate the token count for a collection of log entries
     fn estimate_tokens(&self, entries: &[LogEntry]) -> usize {
-        entries.iter()
+        entries
+            .iter()
             .map(|entry| {
                 // Rough estimation: 4 chars per token
                 let message_tokens = entry.message.len() / 4;
@@ -106,7 +107,9 @@ impl Analyzer {
         let estimated_tokens = self.estimate_tokens(entries);
         let entry_count = entries.len();
 
-        if entry_count <= self.config.chunking_threshold && estimated_tokens <= self.config.max_tokens_per_chunk {
+        if entry_count <= self.config.chunking_threshold
+            && estimated_tokens <= self.config.max_tokens_per_chunk
+        {
             ProcessingStrategy::Single
         } else if estimated_tokens <= self.config.max_tokens_per_chunk * 2 {
             ProcessingStrategy::AggressiveSlimming
@@ -130,7 +133,8 @@ impl Analyzer {
             let entry_tokens = self.estimate_tokens(&[entry.clone()]);
 
             // If adding this entry exceeds the limit and we have entries, start new chunk
-            if current_tokens + entry_tokens > target_tokens_per_chunk && !current_chunk.is_empty() {
+            if current_tokens + entry_tokens > target_tokens_per_chunk && !current_chunk.is_empty()
+            {
                 let chunk_id = chunks.len();
                 chunks.push(LogChunk {
                     entries: current_chunk.clone(),
@@ -172,9 +176,21 @@ impl Analyzer {
     }
 
     /// Enhanced analysis with adaptive processing strategy
-    pub async fn analyze_logs_enhanced(&mut self, entries: Vec<LogEntry>, user_context: Option<String>, progress_callback: Option<Box<dyn Fn(AnalysisProgress) + Send + Sync>>) -> Result<AnalysisResponse> {
-        info!("Starting enhanced analysis of {} log entries", entries.len());
-        
+    pub async fn analyze_logs_enhanced(
+        &mut self,
+        entries: Vec<LogEntry>,
+        user_context: Option<String>,
+        progress_callback: Option<Box<dyn Fn(AnalysisProgress) + Send + Sync>>,
+    ) -> Result<AnalysisResponse> {
+        info!(
+            "Starting enhanced analysis of {} log entries",
+            entries.len()
+        );
+        //DELETE
+        for entry in &entries {
+            info!("Log Entry: {:?}", entry);
+        }
+
         if entries.is_empty() {
             warn!("No log entries provided for analysis");
             return Ok(self.create_empty_response());
@@ -199,21 +215,29 @@ impl Analyzer {
         match strategy {
             ProcessingStrategy::Single => {
                 info!("Using single chunk processing strategy");
-                self.analyze_single_chunk(entries, user_context, progress_callback).await
+                self.analyze_single_chunk(entries, user_context, progress_callback)
+                    .await
             }
             ProcessingStrategy::AggressiveSlimming => {
                 info!("Using aggressive slimming strategy");
-                self.analyze_with_aggressive_slimming(entries, user_context, progress_callback).await
+                self.analyze_with_aggressive_slimming(entries, user_context, progress_callback)
+                    .await
             }
             ProcessingStrategy::Chunked => {
                 info!("Using chunked processing strategy");
-                self.analyze_chunked(entries, user_context, progress_callback).await
+                self.analyze_chunked(entries, user_context, progress_callback)
+                    .await
             }
         }
     }
 
     /// Analyze logs using single request (original behavior)
-    async fn analyze_single_chunk(&mut self, entries: Vec<LogEntry>, user_context: Option<String>, progress_callback: Option<Box<dyn Fn(AnalysisProgress) + Send + Sync>>) -> Result<AnalysisResponse> {
+    async fn analyze_single_chunk(
+        &mut self,
+        entries: Vec<LogEntry>,
+        user_context: Option<String>,
+        progress_callback: Option<Box<dyn Fn(AnalysisProgress) + Send + Sync>>,
+    ) -> Result<AnalysisResponse> {
         if self.config.progress_feedback {
             if let Some(ref callback) = progress_callback {
                 callback(AnalysisProgress {
@@ -229,7 +253,8 @@ impl Analyzer {
         // Use light slimming by default
         let slimmed_entries = slim_logs_with_mode(entries.clone(), SlimmingMode::Light);
 
-        let mut context_manager = ContextManager::new(self.config.max_tokens_per_chunk, user_context.as_deref());
+        let mut context_manager =
+            ContextManager::new(self.config.max_tokens_per_chunk, user_context.as_deref());
 
         for (i, entry) in slimmed_entries.iter().enumerate() {
             context_manager.add_log_entry(entry.clone(), i, slimmed_entries.len())?;
@@ -263,7 +288,12 @@ impl Analyzer {
     }
 
     /// Analyze logs with aggressive slimming
-    async fn analyze_with_aggressive_slimming(&mut self, entries: Vec<LogEntry>, user_context: Option<String>, progress_callback: Option<Box<dyn Fn(AnalysisProgress) + Send + Sync>>) -> Result<AnalysisResponse> {
+    async fn analyze_with_aggressive_slimming(
+        &mut self,
+        entries: Vec<LogEntry>,
+        user_context: Option<String>,
+        progress_callback: Option<Box<dyn Fn(AnalysisProgress) + Send + Sync>>,
+    ) -> Result<AnalysisResponse> {
         if self.config.progress_feedback {
             if let Some(ref callback) = progress_callback {
                 callback(AnalysisProgress {
@@ -279,7 +309,8 @@ impl Analyzer {
         // Use the configured slimming mode (likely Aggressive or Ultra)
         let slimmed_entries = slim_logs_with_mode(entries.clone(), self.config.slimming_mode);
 
-        let mut context_manager = ContextManager::new(self.config.max_tokens_per_chunk, user_context.as_deref());
+        let mut context_manager =
+            ContextManager::new(self.config.max_tokens_per_chunk, user_context.as_deref());
 
         for (i, entry) in slimmed_entries.iter().enumerate() {
             context_manager.add_log_entry(entry.clone(), i, slimmed_entries.len())?;
@@ -321,7 +352,12 @@ impl Analyzer {
     }
 
     /// Analyze logs using chunking strategy for very large logs
-    async fn analyze_chunked(&mut self, entries: Vec<LogEntry>, user_context: Option<String>, progress_callback: Option<Box<dyn Fn(AnalysisProgress) + Send + Sync>>) -> Result<AnalysisResponse> {
+    async fn analyze_chunked(
+        &mut self,
+        entries: Vec<LogEntry>,
+        user_context: Option<String>,
+        progress_callback: Option<Box<dyn Fn(AnalysisProgress) + Send + Sync>>,
+    ) -> Result<AnalysisResponse> {
         // Apply slimming first
         let slimmed_entries = slim_logs_with_mode(entries.clone(), self.config.slimming_mode);
 
@@ -332,7 +368,11 @@ impl Analyzer {
                     total_chunks: 1,
                     chunks_completed: 0,
                     estimated_tokens_processed: 0,
-                    phase: format!("Slimmed {} entries to {} entries, creating chunks", entries.len(), slimmed_entries.len()),
+                    phase: format!(
+                        "Slimmed {} entries to {} entries, creating chunks",
+                        entries.len(),
+                        slimmed_entries.len()
+                    ),
                 });
             }
         }
@@ -351,13 +391,18 @@ impl Analyzer {
                     total_chunks: chunks.len(),
                     chunks_completed: 0,
                     estimated_tokens_processed: 0,
-                    phase: format!("Created {} chunks, starting parallel processing", chunks.len()),
+                    phase: format!(
+                        "Created {} chunks, starting parallel processing",
+                        chunks.len()
+                    ),
                 });
             }
         }
 
         // Process chunks in parallel
-        let chunk_results = self.process_chunks_parallel(chunks, user_context.clone(), &progress_callback).await?;
+        let chunk_results = self
+            .process_chunks_parallel(chunks, user_context.clone(), &progress_callback)
+            .await?;
 
         // Synthesize results
         if self.config.progress_feedback {
@@ -393,7 +438,12 @@ impl Analyzer {
     }
 
     /// Process multiple chunks in parallel
-    async fn process_chunks_parallel(&self, chunks: Vec<LogChunk>, user_context: Option<String>, progress_callback: &Option<Box<dyn Fn(AnalysisProgress) + Send + Sync>>) -> Result<Vec<ChunkAnalysisResult>> {
+    async fn process_chunks_parallel(
+        &self,
+        chunks: Vec<LogChunk>,
+        user_context: Option<String>,
+        progress_callback: &Option<Box<dyn Fn(AnalysisProgress) + Send + Sync>>,
+    ) -> Result<Vec<ChunkAnalysisResult>> {
         let max_parallel = self.config.max_parallel_chunks.min(chunks.len());
         let mut results = Vec::with_capacity(chunks.len());
 
@@ -404,7 +454,9 @@ impl Analyzer {
                 let user_context_clone = user_context.clone();
 
                 // For now, process sequentially to avoid provider sharing issues
-                let chunk_result = self.process_single_chunk(chunk_clone, user_context_clone).await?;
+                let chunk_result = self
+                    .process_single_chunk(chunk_clone, user_context_clone)
+                    .await?;
                 results.push(chunk_result);
 
                 if self.config.progress_feedback {
@@ -414,7 +466,11 @@ impl Analyzer {
                             total_chunks: chunk.total_chunks,
                             chunks_completed: results.len(),
                             estimated_tokens_processed: results.iter().map(|r| r.chunk_size).sum(),
-                            phase: format!("Processed chunk {} of {}", chunk.chunk_id + 1, chunk.total_chunks),
+                            phase: format!(
+                                "Processed chunk {} of {}",
+                                chunk.chunk_id + 1,
+                                chunk.total_chunks
+                            ),
                         });
                     }
                 }
@@ -425,8 +481,13 @@ impl Analyzer {
     }
 
     /// Process a single chunk
-    async fn process_single_chunk(&self, chunk: LogChunk, user_context: Option<String>) -> Result<ChunkAnalysisResult> {
-        let mut context_manager = ContextManager::new(self.config.max_tokens_per_chunk, user_context.as_deref());
+    async fn process_single_chunk(
+        &self,
+        chunk: LogChunk,
+        user_context: Option<String>,
+    ) -> Result<ChunkAnalysisResult> {
+        let mut context_manager =
+            ContextManager::new(self.config.max_tokens_per_chunk, user_context.as_deref());
 
         for (i, entry) in chunk.entries.iter().enumerate() {
             context_manager.add_log_entry(entry.clone(), i, chunk.entries.len())?;
@@ -449,7 +510,11 @@ impl Analyzer {
     }
 
     /// Synthesize results from multiple chunks into a single response
-    fn synthesize_chunk_results(&self, chunk_results: Vec<ChunkAnalysisResult>, original_entry_count: usize) -> Result<AnalysisResponse> {
+    fn synthesize_chunk_results(
+        &self,
+        chunk_results: Vec<ChunkAnalysisResult>,
+        original_entry_count: usize,
+    ) -> Result<AnalysisResponse> {
         if chunk_results.is_empty() {
             return Ok(self.create_empty_response());
         }
@@ -467,7 +532,12 @@ impl Analyzer {
 
             // Collect sequence of events
             if !response.sequence_of_events.trim().is_empty() {
-                all_sequences.push(format!("Chunk {} ({}): {}", i + 1, chunk_result.chunk_id + 1, response.sequence_of_events));
+                all_sequences.push(format!(
+                    "Chunk {} ({}): {}",
+                    i + 1,
+                    chunk_result.chunk_id + 1,
+                    response.sequence_of_events
+                ));
             }
 
             // Collect recommendations
@@ -488,22 +558,30 @@ impl Analyzer {
 
         // Synthesize final response
         let synthesized_sequence = if all_sequences.is_empty() {
-            format!("Analysis of {} log entries across {} chunks found no significant patterns.", original_entry_count, chunk_results.len())
+            format!(
+                "Analysis of {} log entries across {} chunks found no significant patterns.",
+                original_entry_count,
+                chunk_results.len()
+            )
         } else {
-            format!("Large log analysis across {} chunks (original {} entries):\n\n{}",
-                   chunk_results.len(),
-                   original_entry_count,
-                   all_sequences.join("\n\n"))
+            format!(
+                "Large log analysis across {} chunks (original {} entries):\n\n{}",
+                chunk_results.len(),
+                original_entry_count,
+                all_sequences.join("\n\n")
+            )
         };
 
         // Find the most confident root cause
-        let best_root_cause = root_causes.into_iter()
+        let best_root_cause = root_causes
+            .into_iter()
             .zip(confidence_scores.iter())
             .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
             .map(|(rc, _)| rc)
             .unwrap_or_else(|| RootCauseAnalysis {
                 category: ErrorCategory::UnknownRelated,
-                description: "Multiple chunks analyzed but no clear root cause identified".to_string(),
+                description: "Multiple chunks analyzed but no clear root cause identified"
+                    .to_string(),
                 file_location: None,
                 line_number: None,
                 function_name: None,
@@ -532,7 +610,11 @@ impl Analyzer {
     }
 
     /// Enhance analysis response with advanced analytics
-    fn enhance_with_analytics(&self, mut response: AnalysisResponse, entries: &[LogEntry]) -> AnalysisResponse {
+    fn enhance_with_analytics(
+        &self,
+        mut response: AnalysisResponse,
+        entries: &[LogEntry],
+    ) -> AnalysisResponse {
         // Generate error analytics
         let errors_found = self.generate_error_analytics(entries, &response);
 
@@ -553,24 +635,42 @@ impl Analyzer {
         response
     }
 
-    fn generate_error_analytics(&self, entries: &[LogEntry], response: &AnalysisResponse) -> Vec<ErrorAnalysis> {
-
+    fn generate_error_analytics(
+        &self,
+        entries: &[LogEntry],
+        response: &AnalysisResponse,
+    ) -> Vec<ErrorAnalysis> {
         let mut error_map: HashMap<String, (Vec<usize>, Vec<String>)> = HashMap::new();
 
         for (idx, entry) in entries.iter().enumerate() {
             if entry.level.as_ref().is_some_and(|l| l == "ERROR") {
                 let key = entry.message.chars().take(100).collect::<String>();
-                error_map.entry(key.clone())
+                error_map
+                    .entry(key.clone())
                     .or_insert_with(|| (Vec::new(), Vec::new()))
-                    .0.push(idx);
-                error_map.get_mut(&key).unwrap().1.push(entry.message.clone());
+                    .0
+                    .push(idx);
+                error_map
+                    .get_mut(&key)
+                    .unwrap()
+                    .1
+                    .push(entry.message.clone());
             }
         }
 
-        let mut errors: Vec<ErrorAnalysis> = error_map.into_iter()
+        let mut errors: Vec<ErrorAnalysis> = error_map
+            .into_iter()
             .map(|(desc, (lines, contexts))| {
                 let frequency = lines.len();
-                let severity = if frequency > 10 { "critical" } else if frequency > 5 { "high" } else if frequency > 2 { "medium" } else { "low" };
+                let severity = if frequency > 10 {
+                    "critical"
+                } else if frequency > 5 {
+                    "high"
+                } else if frequency > 2 {
+                    "medium"
+                } else {
+                    "low"
+                };
 
                 ErrorAnalysis {
                     category: response.root_cause.category.clone(),
@@ -591,11 +691,11 @@ impl Analyzer {
     }
 
     fn generate_pattern_analytics(&self, entries: &[LogEntry]) -> Vec<PatternAnalysisSimple> {
-
         let mut pattern_map: HashMap<String, Vec<usize>> = HashMap::new();
 
         for (idx, entry) in entries.iter().enumerate() {
-            let pattern = entry.message
+            let pattern = entry
+                .message
                 .split_whitespace()
                 .take(5)
                 .collect::<Vec<&str>>()
@@ -603,14 +703,19 @@ impl Analyzer {
             pattern_map.entry(pattern).or_default().push(idx);
         }
 
-        let mut patterns: Vec<PatternAnalysisSimple> = pattern_map.into_iter()
+        let mut patterns: Vec<PatternAnalysisSimple> = pattern_map
+            .into_iter()
             .filter(|(_, occurrences)| occurrences.len() > 1)
             .map(|(pattern, occurrences)| {
                 let first = *occurrences.first().unwrap();
                 let last = *occurrences.last().unwrap();
-                let trend = if occurrences.len() > 5 { "increasing" }
-                           else if occurrences.len() > 2 { "stable" }
-                           else { "decreasing" };
+                let trend = if occurrences.len() > 5 {
+                    "increasing"
+                } else if occurrences.len() > 2 {
+                    "stable"
+                } else {
+                    "decreasing"
+                };
 
                 PatternAnalysisSimple {
                     pattern,
@@ -628,14 +733,25 @@ impl Analyzer {
     }
 
     fn generate_performance_analytics(&self, entries: &[LogEntry]) -> PerformanceAnalysisSimple {
-
-        let error_count = entries.iter().filter(|e| e.level.as_ref().is_some_and(|l| l == "ERROR")).count();
-        let warn_count = entries.iter().filter(|e| e.level.as_ref().is_some_and(|l| l == "WARN")).count();
+        let error_count = entries
+            .iter()
+            .filter(|e| e.level.as_ref().is_some_and(|l| l == "ERROR"))
+            .count();
+        let warn_count = entries
+            .iter()
+            .filter(|e| e.level.as_ref().is_some_and(|l| l == "WARN"))
+            .count();
         let total_count = entries.len();
 
         let mut metrics = HashMap::new();
-        metrics.insert("error_rate".to_string(), (error_count as f64 / total_count.max(1) as f64) * 100.0);
-        metrics.insert("warning_rate".to_string(), (warn_count as f64 / total_count.max(1) as f64) * 100.0);
+        metrics.insert(
+            "error_rate".to_string(),
+            (error_count as f64 / total_count.max(1) as f64) * 100.0,
+        );
+        metrics.insert(
+            "warning_rate".to_string(),
+            (warn_count as f64 / total_count.max(1) as f64) * 100.0,
+        );
         metrics.insert("total_logs".to_string(), total_count as f64);
 
         let bottlenecks = if error_count > total_count / 10 {
@@ -647,15 +763,17 @@ impl Analyzer {
         PerformanceAnalysisSimple {
             total_processing_time: 0.0,
             bottlenecks,
-            recommendations: vec!["Review error patterns for optimization opportunities".to_string()],
+            recommendations: vec![
+                "Review error patterns for optimization opportunities".to_string()
+            ],
             metrics,
         }
     }
 
     fn generate_anomaly_analytics(&self, entries: &[LogEntry]) -> Vec<AnomalyAnalysisSimple> {
-
         let mut anomalies = Vec::new();
-        let avg_length = entries.iter().map(|e| e.message.len()).sum::<usize>() / entries.len().max(1);
+        let avg_length =
+            entries.iter().map(|e| e.message.len()).sum::<usize>() / entries.len().max(1);
 
         for (idx, entry) in entries.iter().enumerate() {
             if entry.message.len() > avg_length * 3 {
@@ -695,8 +813,13 @@ impl Analyzer {
         }
     }
 
-    pub async fn analyze_logs_with_context(&mut self, entries: Vec<LogEntry>, user_context: Option<String>) -> Result<AnalysisResponse> {
+    pub async fn analyze_logs_with_context(
+        &mut self,
+        entries: Vec<LogEntry>,
+        user_context: Option<String>,
+    ) -> Result<AnalysisResponse> {
         // Use enhanced analysis for all processing - it will determine the best strategy
-        self.analyze_logs_enhanced(entries, user_context, None).await
+        self.analyze_logs_enhanced(entries, user_context, None)
+            .await
     }
 }

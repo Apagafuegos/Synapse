@@ -4,6 +4,7 @@ pub mod tools;
 pub mod server;
 pub mod transport;
 pub mod schema;
+pub mod validation;
 
 /// Database wrapper for MCP server
 #[derive(Clone)]

@@ -17,6 +17,7 @@ COPY loglens-core ./loglens-core
 COPY loglens-wasm ./loglens-wasm
 COPY loglens-web ./loglens-web
 COPY loglens-cli ./loglens-cli
+COPY loglens-mcp ./loglens-mcp
 
 # Build WASM package
 WORKDIR /build/loglens-wasm
@@ -63,6 +64,7 @@ COPY loglens-core ./loglens-core
 COPY loglens-wasm ./loglens-wasm
 COPY loglens-web ./loglens-web
 COPY loglens-cli ./loglens-cli
+COPY loglens-mcp ./loglens-mcp
 
 # Copy sqlx offline data for compile-time query verification
 COPY .sqlx ./.sqlx

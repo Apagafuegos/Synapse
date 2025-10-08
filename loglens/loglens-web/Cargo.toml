@@ -31,6 +31,7 @@ dotenv = "0.15"
 lazy_static = "1.4"
 encoding_rs = "0.8"
 bytes = "1.0"
+sysinfo = "0.30"
 # Export functionality dependencies
 pulldown-cmark = "0.9"
 wkhtmltopdf = "0.4"

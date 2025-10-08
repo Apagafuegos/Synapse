@@ -619,27 +619,25 @@ async fn analyze_large_file_streaming(
             continue;
         }
 
-        // Check log level
-        if is_log_level_at_least(&line_result, level) {
-            logs.push(line_result.clone());
-            filtered_count += 1;
+        // Store all lines (let core library handle filtering including stack traces)
+        logs.push(line_result.clone());
+        filtered_count += 1;
 
-            // Log first few matching lines for debugging
-            if filtered_count <= 3 {
-                tracing::debug!("Log entry {}: {}", filtered_count,
-                    if line_result.len() > 100 {
-                        format!("{}...", &line_result[..100])
-                    } else {
-                        line_result
-                    }
-                );
-            }
+        // Log first few matching lines for debugging
+        if filtered_count <= 3 {
+            tracing::debug!("Log entry {}: {}", filtered_count,
+                if line_result.len() > 100 {
+                    format!("{}...", &line_result[..100])
+                } else {
+                    line_result
+                }
+            );
+        }
 
-            // Limit the number of lines to prevent context overflow
-            if logs.len() >= max_lines {
-                tracing::warn!("Reached line limit ({}) for large file analysis", max_lines);
-                break;
-            }
+        // Limit the number of lines to prevent context overflow
+        if logs.len() >= max_lines {
+            tracing::warn!("Reached line limit ({}) for large file analysis", max_lines);
+            break;
         }
 
         // Progress tracking
@@ -709,17 +707,11 @@ async fn analyze_large_file(
     tracing::info!("Encoding detection completed successfully");
     tracing::info!("Total lines parsed: {}", logs.len());
 
-    // For large files, apply additional filtering
+    // Skip filtering here - let core library handle it properly with stack trace preservation
     let filtered_logs_count = logs.len();
-    tracing::info!("Applying log level filter '{}' to {} lines...", level, filtered_logs_count);
+    let filtered_logs = logs;
 
-    let filtered_logs: Vec<String> = logs.into_iter()
-        .filter(|log| is_log_level_at_least(log, level))
-        .collect();
-
-    tracing::info!("Filtering completed:");
-    tracing::info!("  Total lines before filtering: {}", filtered_logs_count);
-    tracing::info!("  Lines matching '{}' level: {}", level, filtered_logs.len());
+    tracing::info!("Prepared {} lines for core library filtering...", filtered_logs.len());
 
     if filtered_logs.is_empty() {
         let error_msg = format!("No log entries found matching level '{}' in file", level);
@@ -789,17 +781,11 @@ async fn analyze_large_file_with_context(
     tracing::info!("Encoding detection completed successfully");
     tracing::info!("Total lines parsed: {}", logs.len());
 
-    // For large files, apply additional filtering
+    // Skip filtering here - let core library handle it properly with stack trace preservation
     let filtered_logs_count = logs.len();
-    tracing::info!("Applying log level filter '{}' to {} lines...", level, filtered_logs_count);
+    let filtered_logs = logs;
 
-    let filtered_logs: Vec<String> = logs.into_iter()
-        .filter(|log| is_log_level_at_least(log, level))
-        .collect();
-
-    tracing::info!("Filtering completed:");
-    tracing::info!("  Total lines before filtering: {}", filtered_logs_count);
-    tracing::info!("  Lines matching '{}' level: {}", level, filtered_logs.len());
+    tracing::info!("Prepared {} lines for core library filtering...", filtered_logs.len());
 
     if filtered_logs.is_empty() {
         let error_msg = format!("No log entries found matching level '{}' in file", level);
@@ -832,32 +818,103 @@ async fn analyze_large_file_with_context(
 
 /// Check if a log line meets the minimum required level
 fn is_log_level_at_least(log_line: &str, min_level: &str) -> bool {
-    let min_level = min_level.to_uppercase();
-    
-    // Extract level from log line (basic implementation)
-    let level_pattern = r#"(?i)\b(ERROR|WARN|WARNING|INFO|DEBUG|TRACE)\b"#;
+    use loglens_core::filter::LogLevel;
+    use std::str::FromStr;
+
+    // Parse the minimum level
+    let Ok(min_level_enum) = LogLevel::from_str(min_level) else {
+        return false; // Invalid min_level
+    };
+
+    // Extract level from log line
+    // Match various formats:
+    // 1. [ERROR], (WARN), etc - bracketed formats
+    // 2. ERROR:, WARN:, etc - colon-separated at start of line
+    // 3. ESC[31mERROR ESC[0;39m - ANSI color codes around level
+    let level_pattern = r#"(?ix)
+        # Bracketed format: [ERROR] or (WARN)
+        (?:\[|\()(ERROR|FATAL|CRIT|CRITICAL|WARN|WARNING|INFO|DEBUG|TRACE)(?:\]|\))
+        |
+        # ANSI codes around level: ESC[31mERROR ESC[0;39m (ESC = \x1b or \u{1b})
+        \x1b\[\d+m\s*(ERROR|FATAL|CRIT|CRITICAL|WARN|WARNING|INFO|DEBUG|TRACE)\s*\x1b\[\d+;\d+m
+        |
+        # Colon-separated at start: ERROR: message
+        ^[^:]*?\b(ERROR|FATAL|CRIT|CRITICAL|WARN|WARNING|INFO|DEBUG|TRACE)\s*:
+    "#;
     let re = regex::Regex::new(level_pattern).unwrap();
-    
+
     if let Some(caps) = re.captures(log_line) {
-        if let Some(log_level) = caps.get(1) {
-            let log_level = log_level.as_str().to_uppercase();
-            
-            // Compare levels: ERROR > WARN > INFO > DEBUG > TRACE
-            match log_level.as_str() {
-                "ERROR" => true,
-                "WARN" | "WARNING" => min_level != "ERROR",
-                "INFO" => min_level == "ERROR" || min_level == "WARN" || min_level == "WARNING" || min_level == "INFO",
-                "DEBUG" => min_level == "ERROR" || min_level == "WARN" || min_level == "WARNING" || min_level == "INFO" || min_level == "DEBUG",
-                "TRACE" => true, // TRACE is lowest level, always included
-                _ => true,
-            }
-        } else {
-            // If no level found, include by default
-            true
+        // Get first non-None capture group (from 3 possible patterns)
+        let Some(matched_level) = caps.get(1).or_else(|| caps.get(2)).or_else(|| caps.get(3)) else {
+            return false;
+        };
+        let log_level_str = matched_level.as_str().to_uppercase();
+
+        // Normalize level variants
+        let normalized = match log_level_str.as_str() {
+            "FATAL" | "CRIT" | "CRITICAL" => "FATAL",
+            "ERR" => "ERROR",
+            "WARNING" => "WARN",
+            "DBG" => "DEBUG",
+            "TRC" => "TRACE",
+            other => other,
+        };
+
+        // Parse log level and compare
+        if let Ok(log_level_enum) = LogLevel::from_str(normalized) {
+            // Correct comparison: log_level >= min_level
+            return log_level_enum >= min_level_enum;
         }
-    } else {
-        // If no level found, include by default
-        true
+    }
+
+    // If no valid level found, exclude by default (conservative filtering)
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_log_level_at_least_correct_filtering() {
+        // Test ERROR filtering (should only include ERROR and FATAL)
+        assert!(is_log_level_at_least("[ERROR] Something failed", "ERROR"));
+        assert!(!is_log_level_at_least("[WARN] Warning message", "ERROR"));
+        assert!(!is_log_level_at_least("[INFO] Information", "ERROR"));
+        assert!(!is_log_level_at_least("[DEBUG] Debug info", "ERROR"));
+
+        // Test WARN filtering (should include WARN and ERROR)
+        assert!(is_log_level_at_least("[ERROR] Something failed", "WARN"));
+        assert!(is_log_level_at_least("[WARN] Warning message", "WARN"));
+        assert!(!is_log_level_at_least("[INFO] Information", "WARN"));
+
+        // Test INFO filtering (should include INFO, WARN, ERROR)
+        assert!(is_log_level_at_least("[ERROR] Something failed", "INFO"));
+        assert!(is_log_level_at_least("[WARN] Warning message", "INFO"));
+        assert!(is_log_level_at_least("[INFO] Information", "INFO"));
+        assert!(!is_log_level_at_least("[DEBUG] Debug info", "INFO"));
+
+        // Test no level found (should exclude)
+        assert!(!is_log_level_at_least("No log level in this message", "ERROR"));
+        assert!(!is_log_level_at_least("This is just text", "INFO"));
+
+        // Test level in message content (should not match)
+        assert!(!is_log_level_at_least("User provided invalid information", "ERROR"));
+        assert!(!is_log_level_at_least("The error message was displayed", "ERROR"));
+    }
+
+    #[test]
+    fn test_is_log_level_at_least_with_ansi_codes() {
+        // Spring Boot style logs with ANSI color codes (ESC = \x1b)
+        assert!(is_log_level_at_least("\x1b[31mERROR\x1b[0;39m Exception occurred", "ERROR"));
+        assert!(!is_log_level_at_least("\x1b[32m INFO\x1b[0;39m Starting service", "ERROR"));
+        assert!(is_log_level_at_least("\x1b[32m INFO\x1b[0;39m Starting service", "INFO"));
+        assert!(!is_log_level_at_least("\x1b[32m INFO\x1b[0;39m Starting service", "WARN"));
+
+        // Real Spring Boot format from the log file
+        let real_log = "\x1b[2m2025-06-23 11:47:10.714\x1b[0;39m \x1b[31mERROR\x1b[0;39m \x1b[35m36\x1b[0;39m \x1b[2m---\x1b[0;39m";
+        assert!(is_log_level_at_least(real_log, "ERROR"));
+        assert!(!is_log_level_at_least(real_log, "FATAL"));
     }
 }
 

@@ -273,9 +273,22 @@ impl MetricsCollector {
     }
 
     async fn get_memory_usage(&self) -> u64 {
-        // Simple memory usage estimation
-        // In a real implementation, use process information or system metrics
-        std::process::id() as u64 * 1024 // Placeholder
+        use sysinfo::{ProcessRefreshKind, RefreshKind, System};
+
+        let mut sys = System::new_with_specifics(
+            RefreshKind::new().with_processes(ProcessRefreshKind::new().with_memory())
+        );
+
+        let pid = match sysinfo::get_current_pid() {
+            Ok(pid) => pid,
+            Err(_) => return 0,
+        };
+
+        sys.refresh_process_specifics(pid, ProcessRefreshKind::new().with_memory());
+
+        sys.process(pid)
+            .map(|process| process.memory() / (1024 * 1024)) // Convert bytes to MB
+            .unwrap_or(0)
     }
 
     async fn get_cpu_usage(&self) -> f64 {

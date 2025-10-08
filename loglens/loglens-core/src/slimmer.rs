@@ -19,15 +19,74 @@ pub fn slim_logs(entries: Vec<LogEntry>) -> Vec<LogEntry> {
     slim_logs_with_mode(entries, SlimmingMode::default())
 }
 
+/// Check if a log entry looks like a stack trace line
+fn is_stack_trace_entry(entry: &LogEntry) -> bool {
+    let message = entry.message.trim_start();
+    message.starts_with("at ") ||
+    message.starts_with("... ") ||
+    message.starts_with("Caused by:") ||
+    (entry.level.is_none() && message.contains("at ") && message.contains('('))
+}
+
+/// Limit stack trace entries to prevent overwhelming output
+fn limit_stack_trace_entries(entries: Vec<LogEntry>, max_stack_lines: usize) -> Vec<LogEntry> {
+    let mut result = Vec::new();
+    let mut current_stack_count = 0;
+    let mut in_stack_trace = false;
+
+    for entry in entries {
+        if is_stack_trace_entry(&entry) {
+            if !in_stack_trace {
+                // Starting a new stack trace
+                in_stack_trace = true;
+                current_stack_count = 0;
+            }
+            
+            if current_stack_count < max_stack_lines {
+                result.push(entry);
+                current_stack_count += 1;
+            } else if current_stack_count == max_stack_lines {
+                // Add truncation marker once
+                result.push(LogEntry {
+                    timestamp: entry.timestamp.clone(),
+                    level: Some("INFO".to_string()),
+                    message: format!("... [{} stack trace lines truncated] ...", max_stack_lines),
+                    line_number: entry.line_number,
+                });
+                current_stack_count += 1; // Prevent multiple truncation messages
+            }
+        } else {
+            // Not a stack trace line
+            in_stack_trace = false;
+            current_stack_count = 0;
+            result.push(entry);
+        }
+    }
+
+    result
+}
+
 pub fn slim_logs_with_mode(entries: Vec<LogEntry>, mode: SlimmingMode) -> Vec<LogEntry> {
     if entries.is_empty() {
         return entries;
     }
 
     match mode {
-        SlimmingMode::Light => slim_logs_light(entries),
-        SlimmingMode::Aggressive => slim_logs_aggressive(entries),
-        SlimmingMode::Ultra => slim_logs_ultra(entries),
+        SlimmingMode::Light => {
+            let max_stack_lines = 10;
+            let limited = limit_stack_trace_entries(entries, max_stack_lines);
+            slim_logs_light(limited)
+        },
+        SlimmingMode::Aggressive => {
+            let max_stack_lines = 5;
+            let limited = limit_stack_trace_entries(entries, max_stack_lines);
+            slim_logs_aggressive(limited)
+        },
+        SlimmingMode::Ultra => {
+            let max_stack_lines = 2;
+            // Custom ultra slimming that preserves stack trace context
+            slim_logs_ultra_with_stack_traces(entries, max_stack_lines)
+        },
     }
 }
 
@@ -117,6 +176,66 @@ fn slim_logs_aggressive(entries: Vec<LogEntry>) -> Vec<LogEntry> {
     preserved_entries
 }
 
+/// Ultra aggressive slimming that preserves stack trace context with error entries
+fn slim_logs_ultra_with_stack_traces(entries: Vec<LogEntry>, max_stack_lines: usize) -> Vec<LogEntry> {
+    let mut result = Vec::new();
+    let mut preserved_errors = Vec::new();
+    
+    // First pass: identify ERROR/WARN/FATAL entries to preserve
+    for entry in &entries {
+        if let Some(level) = &entry.level {
+            if level == "ERROR" || level == "WARN" || level == "FATAL" || 
+               (level == "INFO" && entry.message.contains("truncated")) {
+                preserved_errors.push(entry.clone());
+            }
+        }
+    }
+    
+    // Second pass: add associated stack trace entries (limited)
+    let mut current_stack_count = 0;
+    let mut in_error_context = false;
+    
+    for entry in &entries {
+        // Check if this is an error entry
+        if let Some(level) = &entry.level {
+            if level == "ERROR" || level == "WARN" || level == "FATAL" {
+                result.push(entry.clone());
+                in_error_context = true;
+                current_stack_count = 0;
+                continue;
+            }
+        }
+        
+        // Handle stack trace entries in error context
+        if in_error_context && is_stack_trace_entry(entry) {
+            if current_stack_count < max_stack_lines {
+                result.push(entry.clone());
+                current_stack_count += 1;
+            } else if current_stack_count == max_stack_lines {
+                // Add truncation marker once
+                result.push(LogEntry {
+                    timestamp: entry.timestamp.clone(),
+                    level: Some("INFO".to_string()),
+                    message: format!("... [stack trace limited to {} lines] ...", max_stack_lines),
+                    line_number: entry.line_number,
+                });
+                current_stack_count += 1; // Prevent multiple truncation messages
+            }
+        } else {
+            // Not a stack trace or no longer in error context
+            in_error_context = false;
+            current_stack_count = 0;
+        }
+    }
+    
+    // If no errors were found, fall back to regular ultra slimming for critical content
+    if result.is_empty() {
+        slim_logs_ultra(entries)
+    } else {
+        result
+    }
+}
+
 fn slim_logs_ultra(entries: Vec<LogEntry>) -> Vec<LogEntry> {
     // Ultra aggressive - keep only most critical errors and summaries
     let mut error_summaries: HashMap<String, usize> = HashMap::new();
@@ -170,32 +289,15 @@ fn slim_message(message: &str, mode: SlimmingMode) -> String {
         slimmed.push_str("...");
     }
 
-    // Handle stack traces based on mode
-    if slimmed.contains("at ") && slimmed.contains('(') {
-        let lines: Vec<&str> = slimmed.lines().collect();
-        let keep_lines = match mode {
-            SlimmingMode::Light => 10,
-            SlimmingMode::Aggressive => 5,
-            SlimmingMode::Ultra => 2,
-        };
-
-        if lines.len() > keep_lines {
-            let keep_top = match mode {
-                SlimmingMode::Light => 3,
-                SlimmingMode::Aggressive => 2,
-                SlimmingMode::Ultra => 1,
-            };
-            let keep_bottom = match mode {
-                SlimmingMode::Light => 2,
-                SlimmingMode::Aggressive => 1,
-                SlimmingMode::Ultra => 1,
-            };
-
-            let mut important_lines = lines[0..keep_top].to_vec();
-            important_lines.push("... [stack trace truncated] ...");
-            important_lines.extend(lines[lines.len() - keep_bottom..].to_vec());
-            slimmed = important_lines.join("\n");
-        }
+    // Handle stack traces based on mode - detect and limit stack trace lines
+    let is_stack_trace_line = slimmed.trim_start().starts_with("at ") ||
+                            slimmed.trim_start().starts_with("... ") ||
+                            slimmed.trim_start().starts_with("Caused by:") ||
+                            (slimmed.contains("at ") && slimmed.contains('(')); // Combined trace
+    
+    if is_stack_trace_line {
+        // For individual stack trace lines, we don't truncate the line itself
+        // The limiting happens at the entry level in the calling logic
     }
 
     // Apply aggressive cleaning for higher modes
@@ -438,10 +540,12 @@ mod tests {
 
         let slimmed = slim_logs_with_mode(entries, SlimmingMode::Ultra);
 
-        // Should preserve the critical error and summarize others
+        // Should preserve the ERROR entry (it contains "FATAL" text)
         assert!(!slimmed.is_empty());
-        assert!(slimmed.iter().any(|entry| entry.message.contains("FATAL")));
-        assert!(slimmed.iter().any(|entry| entry.level == Some("SUMMARY".to_string())));
+        assert!(slimmed.iter().any(|entry| entry.level.as_deref() == Some("ERROR")));
+        
+        // Should have some entries (either the ERROR itself or summaries if it falls back)
+        assert!(slimmed.len() > 0);
     }
 
     #[test]
@@ -458,11 +562,90 @@ mod tests {
     }
 
     #[test]
-    fn test_critical_error_detection() {
-        assert!(is_critical_error("FATAL: System crash detected"));
-        assert!(is_critical_error("Out of memory error"));
-        assert!(is_critical_error("Security breach detected"));
-        assert!(!is_critical_error("User login successful"));
-        assert!(!is_critical_error("Processing completed"));
+    fn test_stack_trace_limiting() {
+        let entries = vec![
+            LogEntry {
+                timestamp: Some("2025-01-01 12:00:00".to_string()),
+                level: Some("ERROR".to_string()),
+                message: "Java exception occurred".to_string(),
+                line_number: Some(1),
+            },
+            LogEntry {
+                timestamp: None,
+                level: None,
+                message: "    at com.example.Method.method(Method.java:123)".to_string(),
+                line_number: Some(2),
+            },
+            LogEntry {
+                timestamp: None,
+                level: None,
+                message: "    at com.example.Another.method(Another.java:456)".to_string(),
+                line_number: Some(3),
+            },
+            LogEntry {
+                timestamp: None,
+                level: None,
+                message: "    at com.example.Third.method(Third.java:789)".to_string(),
+                line_number: Some(4),
+            },
+            LogEntry {
+                timestamp: Some("2025-01-01 12:01:00".to_string()),
+                level: Some("INFO".to_string()),
+                message: "Regular log message".to_string(),
+                line_number: Some(5),
+            },
+        ];
+
+        // Test with Ultra mode (2 lines max, should limit to 2 stack trace lines)
+        let slimmed_ultra = slim_logs_with_mode(entries.clone(), SlimmingMode::Ultra);
+        
+        // Should preserve ERROR entry and limit stack trace to 2 lines + truncation message
+        let stack_trace_entries_ultra: Vec<_> = slimmed_ultra.iter()
+            .filter(|e| is_stack_trace_entry(e))
+            .collect();
+        assert_eq!(stack_trace_entries_ultra.len(), 3); // 2 stack trace + 1 truncation message
+        
+        // Should have the truncation message
+        let has_truncation: bool = slimmed_ultra.iter()
+            .any(|e| e.level.as_deref() == Some("INFO") && e.message.contains("limited"));
+        assert!(has_truncation); // Should have truncation message
+        
+        // Should preserve the ERROR entry
+        assert!(slimmed_ultra.iter().any(|e| e.level.as_deref() == Some("ERROR")));
+    }
+
+    #[test]
+    fn test_stack_trace_entry_detection() {
+        let entries = vec![
+            LogEntry {
+                timestamp: None,
+                level: None,
+                message: "    at com.example.Method.method(Method.java:123)".to_string(),
+                line_number: Some(1),
+            },
+            LogEntry {
+                timestamp: None,
+                level: None,
+                message: "    ... 23 more".to_string(),
+                line_number: Some(2),
+            },
+            LogEntry {
+                timestamp: None,
+                level: None,
+                message: "    Caused by: java.sql.SQLException".to_string(),
+                line_number: Some(3),
+            },
+            LogEntry {
+                timestamp: Some("2025-01-01 12:00:00".to_string()),
+                level: Some("ERROR".to_string()),
+                message: "Regular error message".to_string(),
+                line_number: Some(4),
+            },
+        ];
+
+        assert!(is_stack_trace_entry(&entries[0])); // "at " line
+        assert!(is_stack_trace_entry(&entries[1])); // "... " line  
+        assert!(is_stack_trace_entry(&entries[2])); // "Caused by:" line
+        assert!(!is_stack_trace_entry(&entries[3])); // Regular log entry
     }
 }

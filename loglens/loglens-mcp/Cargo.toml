@@ -9,6 +9,11 @@ authors.workspace = true
 # MCP SDK - using rmcp which is already in workspace
 rmcp = { workspace = true, features = ["server", "transport-io"] }
 
+# Web server for HTTP transport
+axum = { workspace = true }
+tower = { workspace = true }
+tokio-stream = "0.1"
+
 # Workspace dependencies
 tokio = { workspace = true }
 serde = { workspace = true }

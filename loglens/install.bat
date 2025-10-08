@@ -22,13 +22,47 @@ if %errorlevel% neq 0 (
 REM Check if Rust/Cargo is installed
 cargo --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ❌ Error: Cargo not found. Please install Rust:
-    echo    Visit https://rustup.rs/ and download the installer
-    exit /b 1
+    echo ❌ Cargo not found. Installing Rust...
+    echo 📥 Downloading and installing Rust via rustup-init.exe
+    
+    REM Check if PowerShell is available for download
+    powershell -Command "Get-Command powershell" >nul 2>&1
+    if %errorlevel% equ 0 (
+        echo Downloading Rust installer...
+        powershell -Command "Invoke-WebRequest -Uri 'https://win.rustup.rs/x86_64' -OutFile 'rustup-init.exe'"
+        if exist "rustup-init.exe" (
+            echo Running Rust installer...
+            rustup-init.exe -y --default-toolchain stable
+            del rustup-init.exe
+            
+            REM Refresh PATH to include Cargo
+            set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+            
+            REM Verify installation
+            cargo --version >nul 2>&1
+            if %errorlevel% equ 0 (
+                echo ✅ Rust installed successfully!
+                for /f "tokens=*" %%i in ('cargo --version') do set CARGO_VERSION=%%i
+                echo 📍 Location: %USERPROFILE%\.cargo\bin\cargo.exe
+            ) else (
+                echo ❌ Error: Rust installation failed
+                echo    Please install manually: https://rustup.rs/
+                exit /b 1
+            )
+        ) else (
+            echo ❌ Error: Failed to download Rust installer
+            echo    Please install manually: https://rustup.rs/
+            exit /b 1
+        )
+    ) else (
+        echo ❌ Error: PowerShell not available. Cannot install Rust automatically
+        echo    Please install Rust manually: https://rustup.rs/
+        exit /b 1
+    )
+) else (
+    for /f "tokens=*" %%i in ('cargo --version') do set CARGO_VERSION=%%i
+    echo ✅ Found Cargo: %CARGO_VERSION%
 )
-
-for /f "tokens=*" %%i in ('cargo --version') do set CARGO_VERSION=%%i
-echo ✅ Found Cargo: %CARGO_VERSION%
 
 REM Create LogLens data directory
 echo 📁 Creating LogLens data directory...
@@ -174,6 +208,16 @@ if %errorlevel% neq 0 (
     echo.
 )
 
+REM Check if Cargo bin directory is in PATH (for newly installed Rust)
+echo %PATH% | findstr /C:"%USERPROFILE%\.cargo\bin" >nul
+if %errorlevel% neq 0 (
+    echo ⚠️  Warning: %USERPROFILE%\.cargo\bin is not in your PATH
+    echo    Add it using:
+    echo    set PATH="%%USERPROFILE%%\.cargo\bin;%%PATH%%"
+    echo    Or add it permanently through System Properties ^> Environment Variables
+    echo.
+)
+
 REM Test installation
 echo 🧪 Testing installation...
 "%USERPROFILE%\.loglens\bin\loglens.exe" --version >nul 2>&1
@@ -185,16 +229,21 @@ if %errorlevel% equ 0 (
     echo   loglens --help                    # Show help
     echo   loglens --file C:\logs\app.log   # Analyze log file
     echo   loglens --dashboard               # Start web dashboard
-    echo   loglens --mcp-server              # Start MCP server
+    echo   loglens --mcp-server              # Start MCP server (stdio mode)
+    echo   loglens --mcp-server --mcp-transport http  # Start MCP server (HTTP mode)
+    echo   loglens --mcp-server --mcp-port 8080       # Start MCP server on custom port
     echo   loglens init                      # Initialize project
     echo.
     echo Data directory: %USERPROFILE%\.loglens\data
     echo Configuration: %USERPROFILE%\.loglens\config\config.toml
     echo.
     echo MCP Server tools available:
-    echo   - analyze_logs: AI-powered log analysis
-    echo   - parse_logs: Parse raw logs into structured format
-    echo   - filter_logs: Filter logs by level and patterns
+    echo   - list_projects: List available LogLens projects
+    echo   - get_project: Get detailed project information
+    echo   - list_analyses: List analyses for a project
+    echo   - get_analysis: Get complete analysis results
+    echo   - get_analysis_status: Get analysis status for polling
+    echo   - analyze_file: Trigger new analysis on existing file
     echo.
     echo Docker usage:
     echo   docker run -p 8080:8080 -v %USERPROFILE%\.loglens\data:/app/data loglens --dashboard
