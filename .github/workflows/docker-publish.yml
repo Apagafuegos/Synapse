@@ -43,8 +43,8 @@ jobs:
       - name: Build and push Docker image 🚀
         uses: docker/build-push-action@v5
         with:
-          # CORRECTED PATH: Points directly to the 'loglens' subdirectory
-          context: ./loglens 
+          # CORRECTED PATH: Points directly to the '.' subdirectory
+          context: . 
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

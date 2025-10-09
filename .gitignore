@@ -1,91 +1,11 @@
-# Environment files
+/target
+/.serena/
+/.cargo/
+loglens-web/frontend-react/dist/
 .env
-*.env
-
-# Database files
 *.db
 *.db-shm
 *.db-wal
-
-# Build artifacts and dependencies
-/target/
-**/node_modules/
-/dist/
-/build/
-
-# IDE and editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.nano.save
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Temporary files
-*.tmp
-*.temp
-*.log
-
-# Test files and debug
-test_*.rs
-debug_*.rs
-simple_test.py
-test-settings.js
-test_fixes.py
-
-# SQLx query cache (removed - needed for Docker offline builds)
-# **/.sqlx/
-
-# Claude AI files
-**/.claude/
-
-# Uploads directory
-**/uploads/
-
-# Package manager files (Cargo.lock and package-lock.json removed - needed for reproducible builds)
-# Cargo.lock
-# package-lock.json
-yarn.lock
-
-# Build outputs
-*.wasm
-*.css.map
-# Only ignore generated JS in specific locations
-loglens-web/frontend-react/dist/**/*.js
-**/pkg/**/*.js
-
-# Documentation builds
-/docs/build/
-
-# Coverage reports
-coverage/
-*.cover
-
-# Wasm package
-**/pkg/
-
-# Rust specific
-**/*.rs.bk
-*.pdb
-
-# Frontend specific
-frontend-react/dist/
-frontend-react/.env.local
-frontend-react/.env.development.local
-frontend-react/.env.test.local
-frontend-react/.env.production.local
-
-# LogLens specific
-CRUSH.md
-loglens.db
-loglens.db-shm
-loglens.db-wal
+.loglens
+.crush
+data
