@@ -11,7 +11,6 @@ use uuid::Uuid;
 
 use crate::streaming::{StreamingHub, StreamingLogEntry};
 use loglens_core::parser::parse_single_log_line;
-use regex::Regex;
 
 /// Different types of streaming log sources
 #[derive(Debug, Clone)]
@@ -520,10 +519,7 @@ impl StreamingSourceManager {
         source_id: &str,
     ) -> Option<StreamingLogEntry> {
         // Use the existing parser from loglens-core
-        let timestamp_regex = Regex::new(r"(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})?)").unwrap();
-        let _level_regex = Regex::new(r"\b(ERROR|WARN|INFO|DEBUG|TRACE|FATAL)\b").unwrap();
-        
-        let log_entry = parse_single_log_line(line, &timestamp_regex);
+        let log_entry = parse_single_log_line(line);
         
         Some(StreamingLogEntry {
             id: Uuid::new_v4().to_string(),
@@ -578,10 +574,7 @@ impl StreamingSourceManager {
         source_id: &str,
     ) -> Option<StreamingLogEntry> {
         // Basic syslog parsing - could be enhanced with proper RFC 3164/5424 parsing
-        let timestamp_regex = Regex::new(r"(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})?)").unwrap();
-        let _level_regex = Regex::new(r"\b(ERROR|WARN|INFO|DEBUG|TRACE|FATAL)\b").unwrap();
-        
-        let log_entry = parse_single_log_line(line, &timestamp_regex);
+        let log_entry = parse_single_log_line(line);
         
         Some(StreamingLogEntry {
             id: Uuid::new_v4().to_string(),

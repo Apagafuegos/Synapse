@@ -1,16 +1,28 @@
 use crate::input::LogEntry;
 use regex::Regex;
+use std::sync::LazyLock;
+
+// Compile regexes once at startup for performance
+static TIMESTAMP_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})?)")
+        .expect("Failed to compile timestamp regex")
+});
+
+static ANSI_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\x1b\[[0-9;]*m")
+        .expect("Failed to compile ANSI regex")
+});
+
+static BRACKET_PREFIX_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\s*[\[\(][^\]\)]*[\]\)]\s*")
+        .expect("Failed to compile bracket prefix regex")
+});
 
 pub fn parse_log_lines(lines: &[String]) -> Vec<LogEntry> {
     let mut entries = Vec::new();
 
-    // Common log patterns
-    let timestamp_regex =
-        Regex::new(r"(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d{3})?(?:Z|[+-]\d{2}:\d{2})?)")
-            .unwrap();
-
     for (line_number, line) in lines.iter().enumerate() {
-        let mut entry = parse_single_log_line(line, &timestamp_regex);
+        let mut entry = parse_single_log_line(line);
         entry.line_number = Some(line_number + 1);
         entries.push(entry);
     }
@@ -18,8 +30,8 @@ pub fn parse_log_lines(lines: &[String]) -> Vec<LogEntry> {
     entries
 }
 
-pub fn parse_single_log_line(line: &str, timestamp_regex: &Regex) -> LogEntry {
-    let timestamp = timestamp_regex.find(line).map(|m| m.as_str().to_string());
+pub fn parse_single_log_line(line: &str) -> LogEntry {
+    let timestamp = TIMESTAMP_REGEX.find(line).map(|m| m.as_str().to_string());
 
     // Use the flexible log level parsing
     let level = normalize_log_level(line);
@@ -51,10 +63,11 @@ pub fn parse_single_log_line(line: &str, timestamp_regex: &Regex) -> LogEntry {
             for pattern in &patterns {
                 if message.to_uppercase().contains(&pattern.to_uppercase()) {
                     // Use case-insensitive replacement
-                    let pattern_re = regex::Regex::new(&format!(r"(?i){}", regex::escape(pattern))).unwrap();
-                    message = pattern_re.replace(&message, "").to_string().trim().to_string();
-                    found = true;
-                    break;
+                    if let Ok(pattern_re) = regex::Regex::new(&format!(r"(?i){}", regex::escape(pattern))) {
+                        message = pattern_re.replace(&message, "").to_string().trim().to_string();
+                        found = true;
+                        break;
+                    }
                 }
             }
             if found {
@@ -65,10 +78,11 @@ pub fn parse_single_log_line(line: &str, timestamp_regex: &Regex) -> LogEntry {
         // If no formatted level found, try standalone word boundaries
         if !found {
             for variant in &all_level_variants {
-                let pattern_re = regex::Regex::new(&format!(r"(?i)\b{}\b", regex::escape(variant))).unwrap();
-                if pattern_re.is_match(&message) {
-                    message = pattern_re.replace(&message, "").to_string().trim().to_string();
-                    break;
+                if let Ok(pattern_re) = regex::Regex::new(&format!(r"(?i)\b{}\b", regex::escape(variant))) {
+                    if pattern_re.is_match(&message) {
+                        message = pattern_re.replace(&message, "").to_string().trim().to_string();
+                        break;
+                    }
                 }
             }
         }
@@ -78,8 +92,7 @@ pub fn parse_single_log_line(line: &str, timestamp_regex: &Regex) -> LogEntry {
     message = message.trim().to_string();
 
     // Remove common log prefixes like [main], (thread), etc. but be more selective
-    let bracket_re = Regex::new(r"^\s*[\[\(][^\]\)]*[\]\)]\s*").unwrap();
-    message = bracket_re.replace(&message, "").to_string().trim().to_string();
+    message = BRACKET_PREFIX_REGEX.replace(&message, "").to_string().trim().to_string();
 
     LogEntry {
         timestamp,
@@ -94,8 +107,7 @@ pub fn parse_single_log_line(line: &str, timestamp_regex: &Regex) -> LogEntry {
 fn strip_ansi_codes(text: &str) -> String {
     // ANSI escape codes follow the pattern: ESC[...m where ESC is \x1b
     // We need to remove: \x1b[<any chars>m
-    let ansi_regex = Regex::new(r"\x1b\[[0-9;]*m").unwrap();
-    ansi_regex.replace_all(text, "").to_string()
+    ANSI_REGEX.replace_all(text, "").to_string()
 }
 
 pub fn normalize_log_level(line: &str) -> Option<String> {

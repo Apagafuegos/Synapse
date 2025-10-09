@@ -184,6 +184,23 @@ impl LogLens {
         Self { config }
     }
 
+    /// Create optimal AnalysisConfig based on the number of log entries
+    fn create_analysis_config(entry_count: usize, enable_progress: bool) -> AnalysisConfig {
+        AnalysisConfig {
+            max_tokens_per_chunk: 8000,
+            chunking_threshold: 500, // Enable chunking for 500+ entries
+            slimming_mode: if entry_count > 1000 {
+                SlimmingMode::Aggressive
+            } else if entry_count > 500 {
+                SlimmingMode::Light
+            } else {
+                SlimmingMode::Light
+            },
+            max_parallel_chunks: 4,
+            progress_feedback: enable_progress,
+        }
+    }
+
     /// Analyze logs from a file
     pub async fn analyze_file(
         &self,
@@ -279,19 +296,7 @@ impl LogLens {
         )?;
 
         // Configure analyzer for large logs
-        let analysis_config = AnalysisConfig {
-            max_tokens_per_chunk: 8000,
-            chunking_threshold: 500, // Enable chunking for 500+ entries
-            slimming_mode: if slimmed_entries.len() > 1000 {
-                SlimmingMode::Aggressive
-            } else if slimmed_entries.len() > 500 {
-                SlimmingMode::Light
-            } else {
-                SlimmingMode::Light
-            },
-            max_parallel_chunks: 4,
-            progress_feedback: false,
-        };
+        let analysis_config = Self::create_analysis_config(slimmed_entries.len(), false);
 
         let mut analyzer = Analyzer::new(provider).with_config(analysis_config);
         analyzer.analyze_logs(slimmed_entries).await
@@ -335,19 +340,7 @@ impl LogLens {
         let provider = create_provider(provider_name, &api_key)?;
 
         // Configure analyzer for large logs
-        let analysis_config = AnalysisConfig {
-            max_tokens_per_chunk: 8000,
-            chunking_threshold: 500, // Enable chunking for 500+ entries
-            slimming_mode: if slimmed_entries.len() > 1000 {
-                SlimmingMode::Aggressive
-            } else if slimmed_entries.len() > 500 {
-                SlimmingMode::Light
-            } else {
-                SlimmingMode::Light
-            },
-            max_parallel_chunks: 4,
-            progress_feedback: false,
-        };
+        let analysis_config = Self::create_analysis_config(slimmed_entries.len(), false);
 
         let mut analyzer = Analyzer::new(provider).with_config(analysis_config);
         let analysis = analyzer.analyze_logs(slimmed_entries.clone()).await?;
@@ -429,19 +422,7 @@ impl LogLens {
         let provider = create_provider(&request.provider, &api_key)?;
 
         // Configure analyzer for large logs with progress feedback for MCP
-        let analysis_config = AnalysisConfig {
-            max_tokens_per_chunk: 8000,
-            chunking_threshold: 500, // Enable chunking for 500+ entries
-            slimming_mode: if slimmed_entries.len() > 1000 {
-                SlimmingMode::Aggressive
-            } else if slimmed_entries.len() > 500 {
-                SlimmingMode::Light
-            } else {
-                SlimmingMode::Light
-            },
-            max_parallel_chunks: 4,
-            progress_feedback: true, // Enable progress feedback for MCP
-        };
+        let analysis_config = Self::create_analysis_config(slimmed_entries.len(), true);
 
         let mut analyzer = Analyzer::new(provider).with_config(analysis_config);
         let analysis = analyzer.analyze_logs(slimmed_entries.clone()).await?;
@@ -523,19 +504,11 @@ impl LogLens {
         let provider = create_provider(provider_name, &api_key)?;
 
         // Configure analyzer for large logs with appropriate settings for incident digest
-        let analysis_config = AnalysisConfig {
-            max_tokens_per_chunk: 8000,
-            chunking_threshold: 500, // Enable chunking for 500+ entries
-            slimming_mode: if slimmed_entries.len() > 1000 {
-                SlimmingMode::Ultra // More aggressive for incident digest
-            } else if slimmed_entries.len() > 500 {
-                SlimmingMode::Aggressive
-            } else {
-                SlimmingMode::Light
-            },
-            max_parallel_chunks: 4,
-            progress_feedback: false, // No progress feedback for incident digest
-        };
+        // Use Ultra slimming mode for incident digest to be more aggressive
+        let mut analysis_config = Self::create_analysis_config(slimmed_entries.len(), false);
+        if slimmed_entries.len() > 1000 {
+            analysis_config.slimming_mode = SlimmingMode::Ultra;
+        }
 
         let mut analyzer = Analyzer::new(provider).with_config(analysis_config);
         let ai_analysis = analyzer.analyze_logs(slimmed_entries).await?;
@@ -590,7 +563,11 @@ impl LogLens {
 
     // === Incident Digest Extraction Methods ===
 
-    /// Extract critical errors from filtered log entries
+    /// Extract and deduplicate critical errors from filtered log entries
+    ///
+    /// Groups ERROR-level entries by error type, counting occurrences and tracking
+    /// first/last timestamps. Returns errors meeting minimum frequency threshold,
+    /// sorted by frequency (most common first).
     fn extract_critical_errors(&self, entries: &[LogEntry], config: &DigestConfig) -> Vec<CriticalError> {
         let mut error_map: HashMap<String, CriticalError> = HashMap::new();
 
@@ -641,7 +618,10 @@ impl LogLens {
         errors
     }
 
-    /// Create error timeline from log entries
+    /// Create chronological error timeline from log entries
+    ///
+    /// Constructs a timeline of significant log events, deduplicating similar entries
+    /// and optionally filtering low-severity events. Returns events sorted by timestamp.
     fn create_error_timeline(&self, entries: &[LogEntry], config: &DigestConfig) -> Vec<TimelineEvent> {
         let mut timeline: Vec<TimelineEvent> = Vec::new();
         let mut seen_events: HashSet<String> = HashSet::new();
@@ -680,7 +660,10 @@ impl LogLens {
         timeline
     }
 
-    /// Extract stack traces from raw log lines
+    /// Extract and parse stack traces from raw log lines
+    ///
+    /// Identifies stack trace patterns (Java, Python, etc.), extracts key methods,
+    /// and deduplicates similar traces. Returns up to max_stack_traces unique traces.
     fn extract_stack_traces(&self, raw_lines: &[String], config: &DigestConfig) -> Vec<StackTrace> {
         let mut stack_traces: Vec<StackTrace> = Vec::new();
         let mut current_trace: Option<Vec<String>> = None;
@@ -728,6 +711,9 @@ impl LogLens {
     }
 
     /// Extract context windows around critical errors
+    ///
+    /// For each ERROR-level entry, captures surrounding log lines (before and after)
+    /// to provide context for debugging. Returns up to max_context_windows snapshots.
     fn extract_context_windows(&self, raw_lines: &[String], entries: &[LogEntry], config: &DigestConfig) -> Vec<ContextWindow> {
         let mut context_windows: Vec<ContextWindow> = Vec::new();
         let mut processed_lines: HashSet<usize> = HashSet::new();
@@ -756,7 +742,10 @@ impl LogLens {
         context_windows
     }
 
-    /// Calculate overall incident severity
+    /// Calculate overall incident severity based on error counts and levels
+    ///
+    /// Returns: CRITICAL (fatal errors or 50+ errors), HIGH (10+ errors),
+    /// MEDIUM (1+ errors or 20+ warnings), or LOW (minimal issues).
     fn calculate_severity(&self, entries: &[LogEntry]) -> String {
         let mut error_count = 0;
         let mut warn_count = 0;
@@ -782,7 +771,10 @@ impl LogLens {
         }
     }
 
-    /// Extract recommendations from AI analysis
+    /// Extract actionable recommendations from AI analysis
+    ///
+    /// Combines explicit AI recommendations with pattern-based suggestions derived
+    /// from error keywords (database, timeout, memory). Returns up to 5 recommendations.
     fn extract_recommendations(&self, analysis: &AnalysisResponse) -> Vec<String> {
         let mut recommendations = Vec::new();
 

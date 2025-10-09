@@ -1,13 +1,13 @@
 use rmcp::{
-    ServerHandler,
     model::{
-        ServerInfo, Tool, CallToolRequestParam, CallToolResult, Content,
-        ListToolsResult, PaginatedRequestParam
+        CallToolRequestParam, CallToolResult, Content, ListToolsResult, PaginatedRequestParam,
+        ServerInfo, Tool,
     },
+    ServerHandler,
 };
 use std::sync::Arc;
 
-use crate::mcp_server::error::{McpError, internal_error, method_not_found};
+use crate::mcp_server::error::{internal_error, method_not_found, McpError};
 
 pub mod async_analysis;
 pub mod error;
@@ -16,14 +16,14 @@ pub mod types;
 /// Start the MCP server on the given port
 pub async fn start_server(port: u16) -> anyhow::Result<()> {
     tracing::info!("Starting LogLens MCP server on port {}", port);
-    
-    let server = LogLensServer::new();
-    
+
+    let _server = LogLensServer::new();
+
     // For now, we'll start a simple stdio-based MCP server
     // The rmcp library's transport API may have changed, so we'll keep it simple
     tracing::info!("MCP server ready for stdio transport");
     tracing::info!("Available tools: analyze_logs, parse_logs, filter_logs");
-    
+
     // TODO: Implement actual server transport
     // For now, we'll just indicate the server is ready
     println!("🔗 LogLens MCP Server ready on port {}", port);
@@ -31,7 +31,7 @@ pub async fn start_server(port: u16) -> anyhow::Result<()> {
     println!("   - analyze_logs: AI-powered log analysis");
     println!("   - parse_logs: Parse raw logs into structured format");
     println!("   - filter_logs: Filter logs by level and patterns");
-    
+
     // Keep the server running
     loop {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -80,35 +80,83 @@ impl ServerHandler for LogLensServer {
         // analyze_logs tool
         let mut analyze_logs_props = serde_json::Map::new();
         let mut logs_prop = serde_json::Map::new();
-        logs_prop.insert("type".to_string(), serde_json::Value::String("array".to_string()));
+        logs_prop.insert(
+            "type".to_string(),
+            serde_json::Value::String("array".to_string()),
+        );
         logs_prop.insert("items".to_string(), serde_json::json!({"type": "string"}));
-        logs_prop.insert("description".to_string(), serde_json::Value::String("Array of log lines to analyze".to_string()));
+        logs_prop.insert(
+            "description".to_string(),
+            serde_json::Value::String("Array of log lines to analyze".to_string()),
+        );
         analyze_logs_props.insert("logs".to_string(), serde_json::Value::Object(logs_prop));
 
         let mut level_prop = serde_json::Map::new();
-        level_prop.insert("type".to_string(), serde_json::Value::String("string".to_string()));
-        level_prop.insert("enum".to_string(), serde_json::json!(["ERROR", "WARN", "INFO", "DEBUG"]));
-        level_prop.insert("description".to_string(), serde_json::Value::String("Minimum log level to analyze".to_string()));
+        level_prop.insert(
+            "type".to_string(),
+            serde_json::Value::String("string".to_string()),
+        );
+        level_prop.insert(
+            "enum".to_string(),
+            serde_json::json!(["ERROR", "WARN", "INFO", "DEBUG"]),
+        );
+        level_prop.insert(
+            "description".to_string(),
+            serde_json::Value::String("Minimum log level to analyze".to_string()),
+        );
         analyze_logs_props.insert("level".to_string(), serde_json::Value::Object(level_prop));
 
         let mut provider_prop = serde_json::Map::new();
-        provider_prop.insert("type".to_string(), serde_json::Value::String("string".to_string()));
-        provider_prop.insert("enum".to_string(), serde_json::json!(["openrouter", "openai", "claude", "gemini"]));
-        provider_prop.insert("description".to_string(), serde_json::Value::String("AI provider for analysis (optional if set in config/env)".to_string()));
-        analyze_logs_props.insert("provider".to_string(), serde_json::Value::Object(provider_prop));
+        provider_prop.insert(
+            "type".to_string(),
+            serde_json::Value::String("string".to_string()),
+        );
+        provider_prop.insert(
+            "enum".to_string(),
+            serde_json::json!(["openrouter", "openai", "claude", "gemini"]),
+        );
+        provider_prop.insert(
+            "description".to_string(),
+            serde_json::Value::String(
+                "AI provider for analysis (optional if set in config/env)".to_string(),
+            ),
+        );
+        analyze_logs_props.insert(
+            "provider".to_string(),
+            serde_json::Value::Object(provider_prop),
+        );
 
         let mut api_key_prop = serde_json::Map::new();
-        api_key_prop.insert("type".to_string(), serde_json::Value::String("string".to_string()));
-        api_key_prop.insert("description".to_string(), serde_json::Value::String("API key for the provider (optional if set in config/env)".to_string()));
-        analyze_logs_props.insert("api_key".to_string(), serde_json::Value::Object(api_key_prop));
+        api_key_prop.insert(
+            "type".to_string(),
+            serde_json::Value::String("string".to_string()),
+        );
+        api_key_prop.insert(
+            "description".to_string(),
+            serde_json::Value::String(
+                "API key for the provider (optional if set in config/env)".to_string(),
+            ),
+        );
+        analyze_logs_props.insert(
+            "api_key".to_string(),
+            serde_json::Value::Object(api_key_prop),
+        );
 
         tools.push(Tool {
             name: "analyze_logs".into(),
-            description: Some("Analyze log lines using AI to identify patterns, issues, and insights".into()),
+            description: Some(
+                "Analyze log lines using AI to identify patterns, issues, and insights".into(),
+            ),
             input_schema: Arc::new({
                 let mut schema = serde_json::Map::new();
-                schema.insert("type".to_string(), serde_json::Value::String("object".to_string()));
-                schema.insert("properties".to_string(), serde_json::Value::Object(analyze_logs_props));
+                schema.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("object".to_string()),
+                );
+                schema.insert(
+                    "properties".to_string(),
+                    serde_json::Value::Object(analyze_logs_props),
+                );
                 schema.insert("required".to_string(), serde_json::json!(["logs"]));
                 schema
             }),
@@ -117,21 +165,39 @@ impl ServerHandler for LogLensServer {
 
         // parse_logs tool
         let mut parse_logs_props = serde_json::Map::new();
-        parse_logs_props.insert("logs".to_string(), serde_json::Value::Object({
-            let mut prop = serde_json::Map::new();
-            prop.insert("type".to_string(), serde_json::Value::String("array".to_string()));
-            prop.insert("items".to_string(), serde_json::json!({"type": "string"}));
-            prop.insert("description".to_string(), serde_json::Value::String("Array of log lines to parse".to_string()));
-            prop
-        }));
+        parse_logs_props.insert(
+            "logs".to_string(),
+            serde_json::Value::Object({
+                let mut prop = serde_json::Map::new();
+                prop.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("array".to_string()),
+                );
+                prop.insert("items".to_string(), serde_json::json!({"type": "string"}));
+                prop.insert(
+                    "description".to_string(),
+                    serde_json::Value::String("Array of log lines to parse".to_string()),
+                );
+                prop
+            }),
+        );
 
         tools.push(Tool {
             name: "parse_logs".into(),
-            description: Some("Parse log lines into structured format with timestamps, levels, and messages".into()),
+            description: Some(
+                "Parse log lines into structured format with timestamps, levels, and messages"
+                    .into(),
+            ),
             input_schema: Arc::new({
                 let mut schema = serde_json::Map::new();
-                schema.insert("type".to_string(), serde_json::Value::String("object".to_string()));
-                schema.insert("properties".to_string(), serde_json::Value::Object(parse_logs_props));
+                schema.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("object".to_string()),
+                );
+                schema.insert(
+                    "properties".to_string(),
+                    serde_json::Value::Object(parse_logs_props),
+                );
                 schema.insert("required".to_string(), serde_json::json!(["logs"]));
                 schema
             }),
@@ -140,29 +206,56 @@ impl ServerHandler for LogLensServer {
 
         // filter_logs tool
         let mut filter_props = serde_json::Map::new();
-        filter_props.insert("logs".to_string(), serde_json::Value::Object({
-            let mut prop = serde_json::Map::new();
-            prop.insert("type".to_string(), serde_json::Value::String("array".to_string()));
-            prop.insert("items".to_string(), serde_json::json!({"type": "string"}));
-            prop.insert("description".to_string(), serde_json::Value::String("Array of log lines to filter".to_string()));
-            prop
-        }));
+        filter_props.insert(
+            "logs".to_string(),
+            serde_json::Value::Object({
+                let mut prop = serde_json::Map::new();
+                prop.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("array".to_string()),
+                );
+                prop.insert("items".to_string(), serde_json::json!({"type": "string"}));
+                prop.insert(
+                    "description".to_string(),
+                    serde_json::Value::String("Array of log lines to filter".to_string()),
+                );
+                prop
+            }),
+        );
 
-        filter_props.insert("level".to_string(), serde_json::Value::Object({
-            let mut prop = serde_json::Map::new();
-            prop.insert("type".to_string(), serde_json::Value::String("string".to_string()));
-            prop.insert("enum".to_string(), serde_json::json!(["ERROR", "WARN", "INFO", "DEBUG"]));
-            prop.insert("description".to_string(), serde_json::Value::String("Minimum log level to include".to_string()));
-            prop
-        }));
+        filter_props.insert(
+            "level".to_string(),
+            serde_json::Value::Object({
+                let mut prop = serde_json::Map::new();
+                prop.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("string".to_string()),
+                );
+                prop.insert(
+                    "enum".to_string(),
+                    serde_json::json!(["ERROR", "WARN", "INFO", "DEBUG"]),
+                );
+                prop.insert(
+                    "description".to_string(),
+                    serde_json::Value::String("Minimum log level to include".to_string()),
+                );
+                prop
+            }),
+        );
 
         tools.push(Tool {
             name: "filter_logs".into(),
             description: Some("Filter log lines by minimum log level".into()),
             input_schema: Arc::new({
                 let mut schema = serde_json::Map::new();
-                schema.insert("type".to_string(), serde_json::Value::String("object".to_string()));
-                schema.insert("properties".to_string(), serde_json::Value::Object(filter_props));
+                schema.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("object".to_string()),
+                );
+                schema.insert(
+                    "properties".to_string(),
+                    serde_json::Value::Object(filter_props),
+                );
                 schema.insert("required".to_string(), serde_json::json!(["logs", "level"]));
                 schema
             }),
@@ -174,42 +267,69 @@ impl ServerHandler for LogLensServer {
         {
             // add_log_file tool
             let mut add_log_props = serde_json::Map::new();
-            add_log_props.insert("project_path".to_string(), serde_json::json!({
-                "type": "string",
-                "description": "Path to software project root (must contain .loglens/)"
-            }));
-            add_log_props.insert("log_file_path".to_string(), serde_json::json!({
-                "type": "string",
-                "description": "Absolute or relative path to log file"
-            }));
-            add_log_props.insert("level".to_string(), serde_json::json!({
-                "type": "string",
-                "enum": ["ERROR", "WARN", "INFO", "DEBUG"],
-                "description": "Minimum log level to analyze"
-            }));
-            add_log_props.insert("provider".to_string(), serde_json::json!({
-                "type": "string",
-                "enum": ["openrouter", "openai", "claude", "gemini"],
-                "description": "AI provider for analysis"
-            }));
-            add_log_props.insert("auto_analyze".to_string(), serde_json::json!({
-                "type": "boolean",
-                "default": true,
-                "description": "Automatically trigger analysis"
-            }));
-            add_log_props.insert("api_key".to_string(), serde_json::json!({
-                "type": "string",
-                "description": "API key for the provider (optional if set in config/env)"
-            }));
+            add_log_props.insert(
+                "project_path".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "description": "Path to software project root (must contain .loglens/)"
+                }),
+            );
+            add_log_props.insert(
+                "log_file_path".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "description": "Absolute or relative path to log file"
+                }),
+            );
+            add_log_props.insert(
+                "level".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "enum": ["ERROR", "WARN", "INFO", "DEBUG"],
+                    "description": "Minimum log level to analyze"
+                }),
+            );
+            add_log_props.insert(
+                "provider".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "enum": ["openrouter", "openai", "claude", "gemini"],
+                    "description": "AI provider for analysis"
+                }),
+            );
+            add_log_props.insert(
+                "auto_analyze".to_string(),
+                serde_json::json!({
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Automatically trigger analysis"
+                }),
+            );
+            add_log_props.insert(
+                "api_key".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "description": "API key for the provider (optional if set in config/env)"
+                }),
+            );
 
             tools.push(Tool {
                 name: "add_log_file".into(),
                 description: Some("Add log file to project and trigger analysis".into()),
                 input_schema: Arc::new({
                     let mut schema = serde_json::Map::new();
-                    schema.insert("type".to_string(), serde_json::Value::String("object".to_string()));
-                    schema.insert("properties".to_string(), serde_json::Value::Object(add_log_props));
-                    schema.insert("required".to_string(), serde_json::json!(["project_path", "log_file_path"]));
+                    schema.insert(
+                        "type".to_string(),
+                        serde_json::Value::String("object".to_string()),
+                    );
+                    schema.insert(
+                        "properties".to_string(),
+                        serde_json::Value::Object(add_log_props),
+                    );
+                    schema.insert(
+                        "required".to_string(),
+                        serde_json::json!(["project_path", "log_file_path"]),
+                    );
                     schema
                 }),
                 annotations: None,
@@ -217,28 +337,43 @@ impl ServerHandler for LogLensServer {
 
             // get_analysis tool
             let mut get_analysis_props = serde_json::Map::new();
-            get_analysis_props.insert("analysis_id".to_string(), serde_json::json!({
-                "type": "string",
-                "description": "UUID of the analysis to retrieve"
-            }));
-            get_analysis_props.insert("project_path".to_string(), serde_json::json!({
-                "type": "string",
-                "description": "Optional: path to project for validation"
-            }));
-            get_analysis_props.insert("format".to_string(), serde_json::json!({
-                "type": "string",
-                "enum": ["summary", "full", "structured"],
-                "default": "summary",
-                "description": "Level of detail to return"
-            }));
+            get_analysis_props.insert(
+                "analysis_id".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "description": "UUID of the analysis to retrieve"
+                }),
+            );
+            get_analysis_props.insert(
+                "project_path".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "description": "Optional: path to project for validation"
+                }),
+            );
+            get_analysis_props.insert(
+                "format".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "enum": ["summary", "full", "structured"],
+                    "default": "summary",
+                    "description": "Level of detail to return"
+                }),
+            );
 
             tools.push(Tool {
                 name: "get_analysis".into(),
                 description: Some("Retrieve analysis results by ID".into()),
                 input_schema: Arc::new({
                     let mut schema = serde_json::Map::new();
-                    schema.insert("type".to_string(), serde_json::Value::String("object".to_string()));
-                    schema.insert("properties".to_string(), serde_json::Value::Object(get_analysis_props));
+                    schema.insert(
+                        "type".to_string(),
+                        serde_json::Value::String("object".to_string()),
+                    );
+                    schema.insert(
+                        "properties".to_string(),
+                        serde_json::Value::Object(get_analysis_props),
+                    );
                     schema.insert("required".to_string(), serde_json::json!(["analysis_id"]));
                     schema
                 }),
@@ -247,32 +382,50 @@ impl ServerHandler for LogLensServer {
 
             // query_analyses tool
             let mut query_props = serde_json::Map::new();
-            query_props.insert("project_path".to_string(), serde_json::json!({
-                "type": "string",
-                "description": "Filter by project"
-            }));
-            query_props.insert("status".to_string(), serde_json::json!({
-                "type": "string",
-                "enum": ["pending", "completed", "failed"],
-                "description": "Filter by status"
-            }));
-            query_props.insert("limit".to_string(), serde_json::json!({
-                "type": "integer",
-                "default": 10,
-                "description": "Maximum results to return"
-            }));
-            query_props.insert("since".to_string(), serde_json::json!({
-                "type": "string",
-                "description": "ISO timestamp - analyses after this time"
-            }));
+            query_props.insert(
+                "project_path".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "description": "Filter by project"
+                }),
+            );
+            query_props.insert(
+                "status".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "enum": ["pending", "completed", "failed"],
+                    "description": "Filter by status"
+                }),
+            );
+            query_props.insert(
+                "limit".to_string(),
+                serde_json::json!({
+                    "type": "integer",
+                    "default": 10,
+                    "description": "Maximum results to return"
+                }),
+            );
+            query_props.insert(
+                "since".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "description": "ISO timestamp - analyses after this time"
+                }),
+            );
 
             tools.push(Tool {
                 name: "query_analyses".into(),
                 description: Some("Query analyses with filters".into()),
                 input_schema: Arc::new({
                     let mut schema = serde_json::Map::new();
-                    schema.insert("type".to_string(), serde_json::Value::String("object".to_string()));
-                    schema.insert("properties".to_string(), serde_json::Value::Object(query_props));
+                    schema.insert(
+                        "type".to_string(),
+                        serde_json::Value::String("object".to_string()),
+                    );
+                    schema.insert(
+                        "properties".to_string(),
+                        serde_json::Value::Object(query_props),
+                    );
                     schema
                 }),
                 annotations: None,
@@ -291,15 +444,33 @@ impl ServerHandler for LogLensServer {
         _context: rmcp::service::RequestContext<rmcp::service::RoleServer>,
     ) -> Result<CallToolResult, rmcp::Error> {
         match request.name.as_ref() {
-            "analyze_logs" => self.handle_analyze_logs(request.arguments).await.map_err(McpError::into),
-            "parse_logs" => self.handle_parse_logs(request.arguments).await.map_err(McpError::into),
-            "filter_logs" => self.handle_filter_logs(request.arguments).await.map_err(McpError::into),
+            "analyze_logs" => self
+                .handle_analyze_logs(request.arguments)
+                .await
+                .map_err(McpError::into),
+            "parse_logs" => self
+                .handle_parse_logs(request.arguments)
+                .await
+                .map_err(McpError::into),
+            "filter_logs" => self
+                .handle_filter_logs(request.arguments)
+                .await
+                .map_err(McpError::into),
             #[cfg(feature = "project-management")]
-            "add_log_file" => self.handle_add_log_file(request.arguments).await.map_err(McpError::into),
+            "add_log_file" => self
+                .handle_add_log_file(request.arguments)
+                .await
+                .map_err(McpError::into),
             #[cfg(feature = "project-management")]
-            "get_analysis" => self.handle_get_analysis(request.arguments).await.map_err(McpError::into),
+            "get_analysis" => self
+                .handle_get_analysis(request.arguments)
+                .await
+                .map_err(McpError::into),
             #[cfg(feature = "project-management")]
-            "query_analyses" => self.handle_query_analyses(request.arguments).await.map_err(McpError::into),
+            "query_analyses" => self
+                .handle_query_analyses(request.arguments)
+                .await
+                .map_err(McpError::into),
             _ => Err(method_not_found::<rmcp::model::CallToolRequestMethod>()),
         }
     }
@@ -310,24 +481,24 @@ impl LogLensServer {
         &self,
         arguments: Option<serde_json::Map<String, serde_json::Value>>,
     ) -> Result<CallToolResult, McpError> {
-        let args = arguments.ok_or_else(|| 
-            McpError::InvalidInput("Missing arguments".to_string()))?;
+        let args =
+            arguments.ok_or_else(|| McpError::InvalidInput("Missing arguments".to_string()))?;
 
-        let logs: Vec<String> = serde_json::from_value(
-            args.get("logs").cloned().unwrap_or(serde_json::json!([]))
-        ).map_err(|e| McpError::InvalidInput(format!("Invalid logs array: {}", e)))?;
+        let logs: Vec<String> =
+            serde_json::from_value(args.get("logs").cloned().unwrap_or(serde_json::json!([])))
+                .map_err(|e| McpError::InvalidInput(format!("Invalid logs array: {}", e)))?;
 
         let logs_count = logs.len();
 
-        let level = args.get("level")
-            .and_then(|v| v.as_str())
-            .unwrap_or("INFO");
+        let level = args.get("level").and_then(|v| v.as_str()).unwrap_or("INFO");
 
-        let provider = args.get("provider")
+        let provider = args
+            .get("provider")
             .and_then(|v| v.as_str())
             .unwrap_or("openrouter");
 
-        let api_key = args.get("api_key")
+        let api_key = args
+            .get("api_key")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
@@ -337,7 +508,8 @@ impl LogLensServer {
 
         // Analyze logs with the provided API key
         let api_key_ref = api_key.as_ref().map(|s| s.as_str());
-        let analysis_result = loglens.analyze_lines(logs, level, provider, api_key_ref)
+        let analysis_result = loglens
+            .analyze_lines(logs, level, provider, api_key_ref)
             .await
             .map_err(|e| McpError::AnalysisFailed(format!("Analysis failed: {}", e)))?;
 
@@ -350,19 +522,21 @@ impl LogLensServer {
             "provider": provider
         });
 
-        Ok(CallToolResult::success(vec![Content::text(serde_json::to_string_pretty(&response).unwrap())]))
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        )]))
     }
 
     async fn handle_parse_logs(
         &self,
         arguments: Option<serde_json::Map<String, serde_json::Value>>,
     ) -> Result<CallToolResult, McpError> {
-        let args = arguments.ok_or_else(||
-            McpError::InvalidInput("Missing arguments".to_string()))?;
+        let args =
+            arguments.ok_or_else(|| McpError::InvalidInput("Missing arguments".to_string()))?;
 
-        let logs: Vec<String> = serde_json::from_value(
-            args.get("logs").cloned().unwrap_or(serde_json::json!([]))
-        ).map_err(|e| McpError::InvalidInput(format!("Invalid logs array: {}", e)))?;
+        let logs: Vec<String> =
+            serde_json::from_value(args.get("logs").cloned().unwrap_or(serde_json::json!([])))
+                .map_err(|e| McpError::InvalidInput(format!("Invalid logs array: {}", e)))?;
 
         // Parse logs using parser module
         let parsed_logs = crate::parser::parse_log_lines(&logs);
@@ -374,21 +548,24 @@ impl LogLensServer {
             "logs_processed": logs.len()
         });
 
-        Ok(CallToolResult::success(vec![Content::text(serde_json::to_string_pretty(&response).unwrap())]))
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        )]))
     }
 
     async fn handle_filter_logs(
         &self,
         arguments: Option<serde_json::Map<String, serde_json::Value>>,
     ) -> Result<CallToolResult, McpError> {
-        let args = arguments.ok_or_else(||
-            McpError::InvalidInput("Missing arguments".to_string()))?;
+        let args =
+            arguments.ok_or_else(|| McpError::InvalidInput("Missing arguments".to_string()))?;
 
-        let logs: Vec<String> = serde_json::from_value(
-            args.get("logs").cloned().unwrap_or(serde_json::json!([]))
-        ).map_err(|e| McpError::InvalidInput(format!("Invalid logs array: {}", e)))?;
+        let logs: Vec<String> =
+            serde_json::from_value(args.get("logs").cloned().unwrap_or(serde_json::json!([])))
+                .map_err(|e| McpError::InvalidInput(format!("Invalid logs array: {}", e)))?;
 
-        let level = args.get("level")
+        let level = args
+            .get("level")
             .and_then(|v| v.as_str())
             .ok_or_else(|| McpError::InvalidInput("Missing level parameter".to_string()))?;
 
@@ -408,7 +585,9 @@ impl LogLensServer {
             "level": level
         });
 
-        Ok(CallToolResult::success(vec![Content::text(serde_json::to_string_pretty(&response).unwrap())]))
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        )]))
     }
 
     // Phase 3 MCP tool handlers
@@ -417,37 +596,43 @@ impl LogLensServer {
         &self,
         arguments: Option<serde_json::Map<String, serde_json::Value>>,
     ) -> Result<CallToolResult, McpError> {
-        use std::path::{Path, PathBuf};
+        use crate::mcp_server::async_analysis::spawn_analysis_task;
         use crate::project::{
             database::create_pool,
-            queries::{get_or_create_project, create_analysis},
+            queries::{create_analysis, get_or_create_project},
         };
-        use crate::mcp_server::async_analysis::spawn_analysis_task;
+        use std::path::{Path, PathBuf};
 
-        let args = arguments.ok_or_else(||
-            McpError::InvalidInput("Missing arguments".to_string()))?;
+        let args =
+            arguments.ok_or_else(|| McpError::InvalidInput("Missing arguments".to_string()))?;
 
-        let project_path = args.get("project_path")
+        let project_path = args
+            .get("project_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| McpError::InvalidInput("Missing project_path parameter".to_string()))?;
 
-        let log_file_path_str = args.get("log_file_path")
+        let log_file_path_str = args
+            .get("log_file_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| McpError::InvalidInput("Missing log_file_path parameter".to_string()))?;
 
-        let level = args.get("level")
+        let level = args
+            .get("level")
             .and_then(|v| v.as_str())
             .unwrap_or("ERROR");
 
-        let provider = args.get("provider")
+        let provider = args
+            .get("provider")
             .and_then(|v| v.as_str())
             .unwrap_or("openrouter");
 
-        let auto_analyze = args.get("auto_analyze")
+        let auto_analyze = args
+            .get("auto_analyze")
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
 
-        let api_key = args.get("api_key")
+        let api_key = args
+            .get("api_key")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
@@ -476,9 +661,9 @@ impl LogLensServer {
 
         // Connect to project database
         let db_path = loglens_dir.join("index.db");
-        let pool = create_pool(&db_path)
-            .await
-            .map_err(|e| McpError::InternalError(format!("Failed to connect to database: {}", e)))?;
+        let pool = create_pool(&db_path).await.map_err(|e| {
+            McpError::InternalError(format!("Failed to connect to database: {}", e))
+        })?;
 
         // Get or create project
         let project_id = get_or_create_project(&pool, project_path)
@@ -507,7 +692,9 @@ impl LogLensServer {
                 api_key,
             )
             .await
-            .map_err(|e| McpError::InternalError(format!("Failed to spawn analysis task: {}", e)))?;
+            .map_err(|e| {
+                McpError::InternalError(format!("Failed to spawn analysis task: {}", e))
+            })?;
             "pending"
         } else {
             "pending"
@@ -525,7 +712,9 @@ impl LogLensServer {
             }
         });
 
-        Ok(CallToolResult::success(vec![Content::text(serde_json::to_string_pretty(&response).unwrap())]))
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        )]))
     }
 
     #[cfg(feature = "project-management")]
@@ -533,32 +722,31 @@ impl LogLensServer {
         &self,
         arguments: Option<serde_json::Map<String, serde_json::Value>>,
     ) -> Result<CallToolResult, McpError> {
+        use crate::project::{database::create_pool, queries::get_analysis_by_id};
         use std::path::Path;
-        use crate::project::{
-            database::create_pool,
-            queries::get_analysis_by_id,
-        };
 
-        let args = arguments.ok_or_else(||
-            McpError::InvalidInput("Missing arguments".to_string()))?;
+        let args =
+            arguments.ok_or_else(|| McpError::InvalidInput("Missing arguments".to_string()))?;
 
-        let analysis_id = args.get("analysis_id")
+        let analysis_id = args
+            .get("analysis_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| McpError::InvalidInput("Missing analysis_id parameter".to_string()))?;
 
-        let format = args.get("format")
+        let format = args
+            .get("format")
             .and_then(|v| v.as_str())
             .unwrap_or("summary");
 
         // If project_path provided, use its database; otherwise search all .loglens directories
         let pool = if let Some(project_path) = args.get("project_path").and_then(|v| v.as_str()) {
             let db_path = Path::new(project_path).join(".loglens/index.db");
-            create_pool(&db_path)
-                .await
-                .map_err(|e| McpError::InternalError(format!("Failed to connect to database: {}", e)))?
+            create_pool(&db_path).await.map_err(|e| {
+                McpError::InternalError(format!("Failed to connect to database: {}", e))
+            })?
         } else {
             return Err(McpError::InvalidInput(
-                "project_path is required for get_analysis".to_string()
+                "project_path is required for get_analysis".to_string(),
             ));
         };
 
@@ -586,7 +774,7 @@ impl LogLensServer {
                             "patterns": result_opt.as_ref().map(|r| r.patterns_detected.clone()).unwrap_or(serde_json::json!([])),
                             "issues_found": result_opt.as_ref().and_then(|r| r.issues_found),
                         })
-                    },
+                    }
                     "structured" => {
                         serde_json::json!({
                             "success": true,
@@ -608,9 +796,11 @@ impl LogLensServer {
                                 "issues_found": r.issues_found,
                             }))
                         })
-                    },
-                    _ => { // "summary"
-                        let patterns: Vec<serde_json::Value> = result_opt.as_ref()
+                    }
+                    _ => {
+                        // "summary"
+                        let patterns: Vec<serde_json::Value> = result_opt
+                            .as_ref()
                             .and_then(|r| r.patterns_detected.as_array().cloned())
                             .unwrap_or_default();
 
@@ -632,11 +822,14 @@ impl LogLensServer {
                     }
                 };
 
-                Ok(CallToolResult::success(vec![Content::text(serde_json::to_string_pretty(&response).unwrap())]))
-            },
-            None => {
-                Err(McpError::InvalidInput(format!("Analysis not found: {}", analysis_id)))
+                Ok(CallToolResult::success(vec![Content::text(
+                    serde_json::to_string_pretty(&response).unwrap(),
+                )]))
             }
+            None => Err(McpError::InvalidInput(format!(
+                "Analysis not found: {}",
+                analysis_id
+            ))),
         }
     }
 
@@ -645,43 +838,46 @@ impl LogLensServer {
         &self,
         arguments: Option<serde_json::Map<String, serde_json::Value>>,
     ) -> Result<CallToolResult, McpError> {
-        use std::path::Path;
-        use chrono::{DateTime, Utc};
         use crate::project::{
             database::create_pool,
-            queries::{query_analyses, get_project_by_path},
             models::AnalysisStatus,
+            queries::{get_project_by_path, query_analyses},
         };
+        use chrono::{DateTime, Utc};
+        use std::path::Path;
 
         let args = arguments.unwrap_or_default();
 
         // Project path is required
-        let project_path = args.get("project_path")
+        let project_path = args
+            .get("project_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| McpError::InvalidInput("Missing project_path parameter".to_string()))?;
 
         let db_path = Path::new(project_path).join(".loglens/index.db");
-        let pool = create_pool(&db_path)
-            .await
-            .map_err(|e| McpError::InternalError(format!("Failed to connect to database: {}", e)))?;
+        let pool = create_pool(&db_path).await.map_err(|e| {
+            McpError::InternalError(format!("Failed to connect to database: {}", e))
+        })?;
 
         // Get project_id from path
         let project = get_project_by_path(&pool, project_path)
             .await
             .map_err(|e| McpError::InternalError(format!("Failed to get project: {}", e)))?
-            .ok_or_else(|| McpError::InvalidInput(format!("Project not found: {}", project_path)))?;
+            .ok_or_else(|| {
+                McpError::InvalidInput(format!("Project not found: {}", project_path))
+            })?;
 
         let project_id = Some(project.id.as_str());
 
-        let status = args.get("status")
+        let status = args
+            .get("status")
             .and_then(|v| v.as_str())
             .and_then(|s| s.parse::<AnalysisStatus>().ok());
 
-        let limit = args.get("limit")
-            .and_then(|v| v.as_i64())
-            .or(Some(10));
+        let limit = args.get("limit").and_then(|v| v.as_i64()).or(Some(10));
 
-        let since = args.get("since")
+        let since = args
+            .get("since")
             .and_then(|v| v.as_str())
             .and_then(|s| s.parse::<DateTime<Utc>>().ok());
 
@@ -704,6 +900,8 @@ impl LogLensServer {
             "total_count": analyses.len(),
         });
 
-        Ok(CallToolResult::success(vec![Content::text(serde_json::to_string_pretty(&response).unwrap())]))
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        )]))
     }
 }
