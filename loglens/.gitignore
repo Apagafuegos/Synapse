@@ -6,3 +6,6 @@ loglens-web/frontend-react/dist/
 *.db
 *.db-shm
 *.db-wal
+.loglens
+.crush
+data
