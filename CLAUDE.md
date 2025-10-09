@@ -91,10 +91,16 @@ npm run build
 
 ### Database Management
 
-**Important**: LogLens uses a **single, unified database** at `<project-root>/data/loglens.db`. The database is automatically created on first launch. No `DATABASE_URL` environment variable is required.
+**Important**: LogLens uses a **single, unified database** automatically stored in OS-appropriate locations following XDG Base Directory specification:
+
+- **Linux**: `~/.local/share/loglens/loglens.db`
+- **macOS**: `~/Library/Application Support/loglens/loglens.db`
+- **Windows**: `%APPDATA%\loglens\loglens.db`
+
+The database is automatically created on first launch. No `DATABASE_URL` environment variable is required.
 
 ```bash
-# Database is auto-created at: data/loglens.db
+# Database is auto-created in XDG data directory
 # To use a custom location (optional):
 export LOGLENS_DATABASE_PATH=/custom/path/to/loglens.db
 
@@ -402,12 +408,33 @@ LogLens provides full Model Context Protocol support for AI assistant integratio
 {
   "mcpServers": {
     "loglens": {
-      "command": "loglens",
-      "args": ["--mcp-server"]
+      "command": "/absolute/path/to/loglens",
+      "args": ["--mcp-server", "--mcp-transport", "stdio"]
     }
   }
 }
 ```
+
+**Important Notes**:
+- Use absolute path to `loglens` binary
+- Must specify `--mcp-transport stdio` for Claude Desktop
+- Stdio transport requires NO logging output (pure JSON-RPC only)
+- Database automatically stored in OS-appropriate location:
+  - Linux: `~/.local/share/loglens/loglens.db`
+  - macOS: `~/Library/Application Support/loglens/loglens.db`
+  - Windows: `%APPDATA%\loglens\loglens.db`
+
+**Testing MCP Server**:
+```bash
+# Test stdio transport (should output ONLY JSON-RPC)
+echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | \
+  loglens --mcp-server --mcp-transport stdio | jq .
+
+# Start HTTP transport (alternative, allows logging)
+loglens --mcp-server --mcp-transport http --mcp-port 3001
+```
+
+See `MCP_FIXES.md` for detailed implementation notes and troubleshooting.
 
 ## Feature Flags
 

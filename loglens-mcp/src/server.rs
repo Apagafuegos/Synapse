@@ -173,15 +173,14 @@ impl ServerHandler for LogLensMcpHandler {
 
 impl McpServer {
     /// Start the MCP server with stdio transport
+    /// IMPORTANT: No logging is done here to avoid contaminating the JSON-RPC protocol on stdout
     pub async fn start_stdio(&self) -> anyhow::Result<()> {
         use crate::transport::{TransportType, create_and_run_transport};
-        
+
         let handler = Arc::new(LogLensMcpHandler::new(Arc::new(self.clone())));
-        
-        tracing::info!("Starting LogLens MCP server with stdio transport");
-        tracing::info!("Server name: {}", self.config.server_name);
-        tracing::info!("Server version: {}", self.config.server_version);
-        tracing::info!("Available tools: list_projects, get_project, list_analyses, get_analysis, get_analysis_status, analyze_file");
+
+        // NO LOGGING - stdio transport requires pure JSON-RPC on stdout
+        // Any log output will corrupt the protocol and break MCP clients
 
         create_and_run_transport(TransportType::Stdio, handler).await
     }

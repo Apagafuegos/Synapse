@@ -77,16 +77,20 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("loglens=info".parse().unwrap())
-                .add_directive("loglens_core=info".parse().unwrap()),
-        )
-        .init();
-
+    // Parse CLI args first to check if we're in MCP stdio mode
     let cli = Cli::parse();
+
+    // Only initialize logging if NOT in MCP stdio mode
+    // MCP stdio transport requires pure JSON-RPC on stdout - no logging allowed
+    if !cli.mcp_server || !matches!(cli.mcp_transport, McpTransport::Stdio) {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::from_default_env()
+                    .add_directive("loglens=info".parse().unwrap())
+                    .add_directive("loglens_core=info".parse().unwrap()),
+            )
+            .init();
+    }
 
     // Handle dashboard flag
     if cli.dashboard {

@@ -46,6 +46,7 @@ async fn sse_handler(
     Sse::new(stream)
 }
 
+#[allow(dead_code)]
 struct HttpServerState {
     handler: Arc<LogLensMcpHandler>,
     event_tx: mpsc::Sender<String>,

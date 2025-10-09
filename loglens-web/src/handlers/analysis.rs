@@ -708,7 +708,7 @@ async fn analyze_large_file(
     tracing::info!("Total lines parsed: {}", logs.len());
 
     // Skip filtering here - let core library handle it properly with stack trace preservation
-    let filtered_logs_count = logs.len();
+    let _filtered_logs_count = logs.len();
     let filtered_logs = logs;
 
     tracing::info!("Prepared {} lines for core library filtering...", filtered_logs.len());
@@ -782,7 +782,7 @@ async fn analyze_large_file_with_context(
     tracing::info!("Total lines parsed: {}", logs.len());
 
     // Skip filtering here - let core library handle it properly with stack trace preservation
-    let filtered_logs_count = logs.len();
+    let _filtered_logs_count = logs.len();
     let filtered_logs = logs;
 
     tracing::info!("Prepared {} lines for core library filtering...", filtered_logs.len());
@@ -817,6 +817,7 @@ async fn analyze_large_file_with_context(
 }
 
 /// Check if a log line meets the minimum required level
+#[allow(dead_code)]
 fn is_log_level_at_least(log_line: &str, min_level: &str) -> bool {
     use loglens_core::filter::LogLevel;
     use std::str::FromStr;

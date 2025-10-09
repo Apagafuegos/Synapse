@@ -1,5 +1,4 @@
 import { DocumentTextIcon, ArrowDownIcon as DownloadIcon, ShareIcon } from '@heroicons/react/24/outline';
-import { analysisApi } from '@/services/api';
 import { Analysis } from '@/types';
 import { useState } from 'react';
 
@@ -19,7 +18,31 @@ export function ExportOptions({ analysis, loading }: ExportOptionsProps) {
     setExportError(null);
 
     try {
-      const blob = await analysisApi.export(analysis.id, analysis.project_id, format);
+      const response = await fetch(`/api/projects/${analysis.project_id}/analyses/${analysis.id}/export/${format}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Export failed:', response.status, errorText);
+        
+        // Handle PDF specific errors
+        if (format === 'pdf' && response.status === 500) {
+          setExportError('PDF export failed. The server may be missing required dependencies. Try HTML export instead.');
+        } else {
+          setExportError(`Export failed (${response.status}): ${errorText || 'Unknown error'}`);
+        }
+        return;
+      }
+
+      const blob = await response.blob();
+      
+      // Check if we got an error page instead of the expected format
+      if (format === 'pdf' && blob.type === 'text/html') {
+        const text = await blob.text();
+        if (text.includes('PDF Export Failed')) {
+          setExportError('PDF export failed. The server may be missing wkhtmltopdf. Try HTML export instead.');
+          return;
+        }
+      }
 
       // Create download link
       const url = URL.createObjectURL(blob);
@@ -32,7 +55,7 @@ export function ExportOptions({ analysis, loading }: ExportOptionsProps) {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Export failed:', error);
-      setExportError('Failed to export analysis. Please try again.');
+      setExportError(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setExporting(null);
     }

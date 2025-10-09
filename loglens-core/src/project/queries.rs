@@ -14,20 +14,20 @@ pub async fn create_analysis(
     level: String,
 ) -> Result<String> {
     let analysis_id = Uuid::new_v4().to_string();
-    let status_str = AnalysisStatus::Pending.to_string();
     let created_at = Utc::now();
 
     sqlx::query(
         r#"
-        INSERT INTO analyses (id, project_id, log_file_id, analysis_type, provider, level_filter, status, started_at)
-        VALUES (?1, ?2, NULL, 'file', ?3, ?4, ?5, ?6)
+        INSERT INTO analyses (id, project_id, log_file_path, provider, level, status, created_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
         "#
     )
     .bind(&analysis_id)
     .bind(&project_id)
+    .bind(&log_file_path)
     .bind(&provider)
     .bind(&level)
-    .bind(AnalysisStatus::Pending as i32)
+    .bind(AnalysisStatus::Pending.to_string())
     .bind(&created_at)
     .execute(pool)
     .await?;
@@ -40,10 +40,30 @@ pub async fn get_analysis_by_id(
     pool: &SqlitePool,
     analysis_id: &str,
 ) -> Result<Option<(Analysis, Option<AnalysisResult>)>> {
-    // Note: This function references a legacy schema and may not work with the unified database
-    // The unified database has different column names (log_file_id vs log_file_path, etc.)
-    // For now, return None to allow compilation. This may need proper implementation later.
-    Ok(None)
+    // Query analysis record
+    let analysis = sqlx::query_as::<_, Analysis>(
+        "SELECT id, project_id, log_file_path, provider, level, status,
+                created_at, started_at, completed_at, metadata
+         FROM analyses WHERE id = ?1"
+    )
+    .bind(analysis_id)
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some(analysis) = analysis {
+        // Query analysis result if it exists
+        let result = sqlx::query_as::<_, AnalysisResult>(
+            "SELECT analysis_id, summary, full_report, patterns_detected, issues_found, metadata
+             FROM analysis_results WHERE analysis_id = ?1"
+        )
+        .bind(analysis_id)
+        .fetch_optional(pool)
+        .await?;
+
+        Ok(Some((analysis, result)))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Query analyses with filters
@@ -54,12 +74,9 @@ pub async fn query_analyses(
     limit: Option<i64>,
     since: Option<DateTime<Utc>>,
 ) -> Result<Vec<Analysis>> {
-    // Note: This function references legacy schema columns
-    // The unified database uses different column names
-    // For now, return empty to allow compilation
     let mut query_builder = sqlx::QueryBuilder::new(
-        "SELECT id, project_id, log_file_id, provider, level_filter, status, \
-         started_at, started_at, completed_at, NULL as metadata \
+        "SELECT id, project_id, log_file_path, provider, level, status, \
+         created_at, started_at, completed_at, metadata \
          FROM analyses \
          WHERE 1=1"
     );
@@ -75,11 +92,11 @@ pub async fn query_analyses(
     }
 
     if let Some(since) = since {
-        query_builder.push(" AND created_at >= ");
+        query_builder.push(" AND started_at >= ");
         query_builder.push_bind(since);
     }
 
-    query_builder.push(" ORDER BY created_at DESC");
+    query_builder.push(" ORDER BY started_at DESC");
 
     if let Some(limit) = limit {
         query_builder.push(" LIMIT ");
@@ -103,22 +120,21 @@ pub async fn store_analysis_results(
     patterns: Vec<Pattern>,
     issues_found: Option<i64>,
 ) -> Result<()> {
-    let patterns_json = serde_json::to_value(patterns)?;
-    
-    // For the unified database, we store analysis results in the 'result' JSON column
-    // This legacy function is kept for compatibility but may not be used
-    let result_json = serde_json::json!({
-        "summary": summary,
-        "full_report": full_report,
-        "patterns_detected": patterns_json,
-        "issues_found": issues_found
-    });
+    let patterns_json = serde_json::to_value(patterns)?.to_string();
 
+    // Insert or replace results in analysis_results table
     sqlx::query(
-        "UPDATE analyses SET result = ?1 WHERE id = ?2"
+        r#"
+        INSERT OR REPLACE INTO analysis_results
+        (analysis_id, summary, full_report, patterns_detected, issues_found)
+        VALUES (?1, ?2, ?3, ?4, ?5)
+        "#
     )
-    .bind(result_json.to_string())
     .bind(analysis_id)
+    .bind(summary)
+    .bind(full_report)
+    .bind(patterns_json)
+    .bind(issues_found)
     .execute(pool)
     .await?;
 
@@ -132,11 +148,10 @@ pub async fn update_analysis_status(
     status: AnalysisStatus,
     completed_at: Option<DateTime<Utc>>,
 ) -> Result<()> {
-    let status_int = status as i32;
     sqlx::query(
         "UPDATE analyses SET status = ?1, completed_at = ?2 WHERE id = ?3"
     )
-    .bind(status_int)
+    .bind(status.to_string())
     .bind(completed_at)
     .bind(analysis_id)
     .execute(pool)

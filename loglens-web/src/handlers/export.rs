@@ -51,11 +51,24 @@ pub async fn export_html_report(
     Path((project_id, analysis_id)): Path<(String, String)>,
     Query(params): Query<ExportQuery>,
 ) -> Result<Response, AppError> {
+    tracing::info!("Starting HTML export for analysis {} in project {}", analysis_id, project_id);
+    
     // Get analysis data
-    let analysis = get_analysis_with_related_data(state, &project_id, &analysis_id).await?;
+    let analysis = get_analysis_with_related_data(state, &project_id, &analysis_id).await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch analysis data for HTML export: {}", e);
+            e
+        })?;
 
     // Generate HTML report
     let html_content = generate_html_report(&analysis, params.include_charts.unwrap_or(true));
+    
+    if html_content.is_empty() {
+        tracing::error!("Generated HTML content is empty for analysis {}", analysis_id);
+        return Err(AppError::internal("Failed to generate HTML content: empty result"));
+    }
+
+    tracing::info!("Successfully generated HTML export for analysis {} (size: {} bytes)", analysis_id, html_content.len());
 
     Response::builder()
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
@@ -130,10 +143,17 @@ pub async fn export_pdf_report(
     State(state): State<AppState>,
     Path((project_id, analysis_id)): Path<(String, String)>,
 ) -> Result<Response, AppError> {
-    let analysis = get_analysis_with_related_data(state, &project_id, &analysis_id).await?;
+    tracing::info!("Starting PDF export for analysis {} in project {}", analysis_id, project_id);
+    
+    let analysis = get_analysis_with_related_data(state, &project_id, &analysis_id).await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch analysis data for PDF export: {}", e);
+            e
+        })?;
 
     match generate_pdf_report(&analysis, &analysis_id).await {
         Ok(pdf_data) => {
+            tracing::info!("Successfully generated PDF export for analysis {} (size: {} bytes)", analysis_id, pdf_data.len());
             Ok(Response::builder()
                 .header(header::CONTENT_TYPE, "application/pdf")
                 .header(
@@ -141,27 +161,58 @@ pub async fn export_pdf_report(
                     format!("attachment; filename=\"loglens_analysis_{}.pdf\"", analysis_id),
                 )
                 .body(pdf_data.into())
-                .map_err(|e: axum::http::Error| { tracing::error!("HTTP response error: {}", e); AppError::internal(format!("Failed to build response: {}", e)) })?)
+                .map_err(|e: axum::http::Error| { 
+                    tracing::error!("HTTP response error for PDF: {}", e); 
+                    AppError::internal(format!("Failed to build PDF response: {}", e)) 
+                })?)
         }
         Err(e) => {
-            tracing::error!("Failed to generate PDF: {}", e);
-            // Fallback to HTML with message
-            let html_content = format!(
+            tracing::error!("Failed to generate PDF for analysis {}: {}", analysis_id, e);
+            // Return a more informative error response instead of fallback HTML
+            let error_html = format!(
                 r#"<!DOCTYPE html>
                 <html>
-                <head><title>PDF Export Error</title></head>
+                <head>
+                    <title>PDF Export Error - LogLens</title>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }}
+                        .container {{ max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                        h1 {{ color: #e74c3c; }}
+                        .error-details {{ background: #f8d7da; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+                        .suggestion {{ background: #d1ecf1; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+                    </style>
+                </head>
                 <body>
-                    <h1>PDF Export Unavailable</h1>
-                    <p>PDF generation failed: {}</p>
-                    <p>Please try HTML export instead.</p>
+                    <div class="container">
+                        <h1>PDF Export Failed</h1>
+                        <p>We encountered an error while generating the PDF report for analysis <strong>{}</strong>.</p>
+                        
+                        <div class="error-details">
+                            <strong>Error Details:</strong><br>
+                            {}
+                        </div>
+                        
+                        <div class="suggestion">
+                            <strong>Suggested Solutions:</strong><br>
+                            1. Try exporting in <strong>HTML format</strong> instead (contains the same content)<br>
+                            2. Check if the analysis data is complete<br>
+                            3. Contact support if the issue persists
+                        </div>
+                        
+                        <p><em>You can close this window and try a different export format.</em></p>
+                    </div>
                 </body>
                 </html>"#,
-                e
+                analysis_id, e
             );
             Ok(Response::builder()
-                .header(header::CONTENT_TYPE, "text/html")
-                .body(html_content.into())
-                .map_err(|e: axum::http::Error| { tracing::error!("HTTP response error: {}", e); AppError::internal(format!("Failed to build response: {}", e)) })?)
+                .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+                .status(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+                .body(error_html.into())
+                .map_err(|e: axum::http::Error| { 
+                    tracing::error!("Failed to build error response: {}", e); 
+                    AppError::internal(format!("Failed to build error response: {}", e)) 
+                })?)
         }
     }
 }
@@ -417,14 +468,31 @@ fn generate_markdown_report(analysis: &serde_json::Value, analysis_id: &str) -> 
 }
 
 // Helper function to generate PDF report
-async fn generate_pdf_report(analysis: &serde_json::Value, _analysis_id: &str) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+async fn generate_pdf_report(analysis: &serde_json::Value, analysis_id: &str) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+    tracing::info!("Starting PDF generation for analysis {}", analysis_id);
+    
+    // Check if wkhtmltopdf is available
+    match Command::new("wkhtmltopdf").arg("--version").output() {
+        Ok(_) => tracing::info!("wkhtmltopdf is available"),
+        Err(e) => {
+            tracing::error!("wkhtmltopdf not found: {}", e);
+            return Err(format!("wkhtmltopdf binary not found: {}. Please install wkhtmltopdf.", e).into());
+        }
+    }
+
     // First generate HTML content
     let html_content = generate_html_report(analysis, true);
+    
+    if html_content.is_empty() {
+        return Err("Failed to generate HTML content for PDF conversion".into());
+    }
 
     // Create a temporary HTML file
-    let mut temp_file = NamedTempFile::new()?;
+    let mut temp_file = NamedTempFile::with_suffix(".html")?;
     temp_file.write_all(html_content.as_bytes())?;
     let temp_path = temp_file.path();
+    
+    tracing::debug!("Created temporary HTML file at: {:?}", temp_path);
 
     // Use wkhtmltopdf to convert HTML to PDF
     let output = Command::new("wkhtmltopdf")
@@ -441,15 +509,24 @@ async fn generate_pdf_report(analysis: &serde_json::Value, _analysis_id: &str) -
         .arg("--margin-right")
         .arg("15mm")
         .arg("--enable-local-file-access")
+        .arg("--encoding")
+        .arg("UTF-8")
+        .arg("--no-stop-slow-scripts")
         .arg(temp_path)
         .arg("-")
         .output()?;
 
     if output.status.success() {
+        let pdf_size = output.stdout.len();
+        tracing::info!("Successfully generated PDF for analysis {} (size: {} bytes)", analysis_id, pdf_size);
         Ok(output.stdout)
     } else {
         let error_msg = String::from_utf8_lossy(&output.stderr);
-        Err(format!("wkhtmltopdf failed: {}", error_msg).into())
+        let stdout_msg = String::from_utf8_lossy(&output.stdout);
+        tracing::error!("wkhtmltopdf failed with status {}: stderr: {}, stdout: {}", 
+                      output.status, error_msg, stdout_msg);
+        Err(format!("wkhtmltopdf failed (exit code: {}): {}", 
+                   output.status.code().unwrap_or(-1), error_msg).into())
     }
 }
 

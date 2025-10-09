@@ -70,7 +70,8 @@ pub async fn analyze_file(db: &Database, params: Value) -> Result<Value> {
 
     tokio::spawn(async move {
         if let Err(e) = run_analysis(&db_clone, &analysis_id_clone, &file_path_clone, &provider_clone).await {
-            tracing::error!("Background analysis task failed: {}", e);
+            // Log errors to file only, not stdout/stderr to avoid stdio contamination
+            eprintln!("[BACKGROUND ERROR] Analysis task failed: {}", e);
         }
     });
 
@@ -156,19 +157,19 @@ async fn run_analysis(
 
             // Update status to completed
             sqlx::query(
-                "UPDATE analyses SET status = 'completed', completed_at = CURRENT_TIMESTAMP 
+                "UPDATE analyses SET status = 'completed', completed_at = CURRENT_TIMESTAMP
                  WHERE id = ?"
             )
             .bind(analysis_id)
             .execute(&db.pool)
             .await?;
 
-            tracing::info!("Analysis completed successfully: {}", analysis_id);
+            // Success - no logging to avoid stdio contamination
         }
         Err(e) => {
             // Update status to failed with error message
             sqlx::query(
-                "UPDATE analyses SET status = 'failed', error_message = ?, completed_at = CURRENT_TIMESTAMP 
+                "UPDATE analyses SET status = 'failed', error_message = ?, completed_at = CURRENT_TIMESTAMP
                  WHERE id = ?"
             )
             .bind(e.to_string())
@@ -176,7 +177,7 @@ async fn run_analysis(
             .execute(&db.pool)
             .await?;
 
-            tracing::error!("Analysis failed: {} - {}", analysis_id, e);
+            // Error info is already in database - no logging to avoid stdio contamination
         }
     }
 

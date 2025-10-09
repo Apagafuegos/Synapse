@@ -29,6 +29,9 @@ sqlx = { workspace = true }
 # Local dependencies
 loglens-core = { path = "../loglens-core" }
 
+[dev-dependencies]
+tempfile = "3.8"
+
 [features]
 default = ["project-management"]
 project-management = ["loglens-core/project-management"]

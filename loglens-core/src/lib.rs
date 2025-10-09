@@ -21,8 +21,7 @@ pub mod slimmer;
 #[cfg(feature = "project-management")]
 pub mod project;
 
-#[cfg(feature = "mcp-server")]
-pub mod mcp_server;
+// Old MCP server implementation removed - use loglens-mcp crate instead
 
 pub use ai_provider::{create_provider, create_provider_with_model, AIProvider, AnalysisRequest, AnalysisResponse, AIError, AnalysisFocus, RootCauseAnalysis, OpenRouterProvider, OpenAIProvider, ClaudeProvider, GeminiProvider};
 pub use analyzer::{Analyzer, AnalysisConfig, AnalysisProgress};
