@@ -12,7 +12,7 @@ pub async fn list_projects(db: &Database, params: Value) -> Result<Value> {
         "SELECT p.id, p.name, p.description, p.created_at, p.updated_at,
          COUNT(DISTINCT f.id) as file_count,
          COUNT(DISTINCT a.id) as analysis_count,
-         MAX(a.created_at) as last_analysis_date
+         MAX(a.started_at) as last_analysis_date
          FROM projects p
          LEFT JOIN log_files f ON p.id = f.project_id
          LEFT JOIN analyses a ON p.id = a.project_id"
@@ -71,7 +71,7 @@ pub async fn get_project(db: &Database, params: Value) -> Result<Value> {
         "SELECT p.id, p.name, p.description, p.created_at, p.updated_at,
          COUNT(DISTINCT f.id) as file_count,
          COUNT(DISTINCT a.id) as analysis_count,
-         MAX(a.created_at) as last_analysis_date
+         MAX(a.started_at) as last_analysis_date
          FROM projects p
          LEFT JOIN log_files f ON p.id = f.project_id
          LEFT JOIN analyses a ON p.id = a.project_id
