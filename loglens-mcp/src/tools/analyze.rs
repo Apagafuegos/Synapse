@@ -31,7 +31,7 @@ pub async fn analyze_file(db: &Database, params: Value) -> Result<Value> {
 
     // Validate file exists and belongs to project
     let file_row = sqlx::query(
-        "SELECT id, project_id, file_path, original_name FROM files WHERE id = ? AND project_id = ?"
+        "SELECT id, project_id, upload_path, filename FROM log_files WHERE id = ? AND project_id = ?"
     )
     .bind(&file_id)
     .bind(&project_id)
@@ -45,15 +45,15 @@ pub async fn analyze_file(db: &Database, params: Value) -> Result<Value> {
 
     let file_id: String = row.get("id");
     let project_id: String = row.get("project_id");
-    let file_path: String = row.get("file_path");
-    let _original_name: String = row.get("original_name");
+    let file_path: String = row.get("upload_path");
+    let _original_name: String = row.get("filename");
 
     // Create analysis record
     let analysis_id = Uuid::new_v4().to_string();
     
     sqlx::query(
-        "INSERT INTO analyses (id, project_id, file_id, status, provider) 
-         VALUES (?, ?, ?, 'pending', ?)"
+        "INSERT INTO analyses (id, project_id, log_file_id, analysis_type, status, provider, level_filter, started_at)
+         VALUES (?, ?, ?, 'file', 0, ?, 'ERROR', CURRENT_TIMESTAMP)"
     )
     .bind(&analysis_id)
     .bind(&project_id)
@@ -83,14 +83,14 @@ pub async fn analyze_file(db: &Database, params: Value) -> Result<Value> {
 
 /// Run analysis in background task
 async fn run_analysis(
-    db: &Database, 
-    analysis_id: &str, 
-    file_path: &str, 
+    db: &Database,
+    analysis_id: &str,
+    file_path: &str,
     provider: &str
 ) -> Result<()> {
-    // Update status to running
+    // Update status to running (1=running in web schema)
     sqlx::query(
-        "UPDATE analyses SET status = 'running' WHERE id = ?"
+        "UPDATE analyses SET status = 1 WHERE id = ?"
     )
     .bind(analysis_id)
     .execute(&db.pool)
@@ -100,9 +100,9 @@ async fn run_analysis(
     let raw_lines = match loglens_core::input::read_log_file(file_path).await {
         Ok(lines) => lines,
         Err(e) => {
-            // Update status to failed with error message
+            // Update status to failed (3=failed in web schema)
             sqlx::query(
-                "UPDATE analyses SET status = 'failed', error_message = ?, completed_at = CURRENT_TIMESTAMP 
+                "UPDATE analyses SET status = 3, error_message = ?, completed_at = CURRENT_TIMESTAMP
                  WHERE id = ?"
             )
             .bind(e.to_string())
@@ -124,42 +124,15 @@ async fn run_analysis(
 
     match result {
         Ok(analysis) => {
-            // Convert AnalysisResponse to database format
-            let errors_json = serde_json::to_string(&analysis.errors_found.unwrap_or_default())?;
-            let warnings_json = serde_json::to_string(&Vec::<String>::new())?; // TODO: Extract from analysis
-            let recommendations_json = serde_json::to_string(&analysis.recommendations)?;
-            let patterns_json = serde_json::to_string(&analysis.patterns.unwrap_or_default())?;
-            let performance_json = serde_json::to_string(&analysis.performance)?;
-            let metadata_json = serde_json::json!({
-                "confidence": analysis.confidence,
-                "root_cause": analysis.root_cause,
-                "related_errors": analysis.related_errors,
-                "unrelated_errors": analysis.unrelated_errors
-            });
-            let metadata_string = serde_json::to_string(&metadata_json)?;
+            // Serialize the entire analysis result as JSON for storage in the result column
+            let result_json = serde_json::to_string(&analysis)?;
 
+            // Update status to completed (2=completed in web schema) and store result
             sqlx::query(
-                "INSERT INTO analysis_results 
-                 (analysis_id, summary, errors, warnings, recommendations, patterns, 
-                  performance_metrics, metadata)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-            )
-            .bind(analysis_id)
-            .bind(&analysis.sequence_of_events)
-            .bind(errors_json)
-            .bind(warnings_json)
-            .bind(recommendations_json)
-            .bind(patterns_json)
-            .bind(performance_json)
-            .bind(metadata_string)
-            .execute(&db.pool)
-            .await?;
-
-            // Update status to completed
-            sqlx::query(
-                "UPDATE analyses SET status = 'completed', completed_at = CURRENT_TIMESTAMP
+                "UPDATE analyses SET status = 2, result = ?, completed_at = CURRENT_TIMESTAMP
                  WHERE id = ?"
             )
+            .bind(result_json)
             .bind(analysis_id)
             .execute(&db.pool)
             .await?;
@@ -167,9 +140,9 @@ async fn run_analysis(
             // Success - no logging to avoid stdio contamination
         }
         Err(e) => {
-            // Update status to failed with error message
+            // Update status to failed (3=failed in web schema)
             sqlx::query(
-                "UPDATE analyses SET status = 'failed', error_message = ?, completed_at = CURRENT_TIMESTAMP
+                "UPDATE analyses SET status = 3, error_message = ?, completed_at = CURRENT_TIMESTAMP
                  WHERE id = ?"
             )
             .bind(e.to_string())

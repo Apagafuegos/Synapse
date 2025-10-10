@@ -18,10 +18,10 @@ pub async fn list_analyses(db: &Database, params: Value) -> Result<Value> {
         .unwrap_or(0);
 
     let rows = sqlx::query(
-        "SELECT id, project_id, file_id, status, created_at, completed_at, error_message
+        "SELECT id, project_id, log_file_id, status, started_at, completed_at, error_message
          FROM analyses
          WHERE project_id = ?
-         ORDER BY created_at DESC
+         ORDER BY started_at DESC
          LIMIT ? OFFSET ?"
     )
     .bind(&project_id)
@@ -40,18 +40,27 @@ pub async fn list_analyses(db: &Database, params: Value) -> Result<Value> {
     let analyses_json: Vec<Value> = rows.into_iter().map(|row| {
         let id: String = row.get("id");
         let project_id: String = row.get("project_id");
-        let file_id: String = row.get("file_id");
-        let status: String = row.get("status");
-        let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
+        let log_file_id: Option<String> = row.get("log_file_id");
+        let status: i32 = row.get("status");
+        let started_at: chrono::DateTime<chrono::Utc> = row.get("started_at");
         let completed_at: Option<chrono::DateTime<chrono::Utc>> = row.get("completed_at");
         let error_message: Option<String> = row.get("error_message");
+
+        // Convert status code to string
+        let status_str = match status {
+            0 => "pending",
+            1 => "running",
+            2 => "completed",
+            3 => "failed",
+            _ => "unknown"
+        };
 
         serde_json::json!({
             "id": id,
             "project_id": project_id,
-            "file_id": file_id,
-            "status": status,
-            "created_at": created_at,
+            "log_file_id": log_file_id,
+            "status": status_str,
+            "started_at": started_at,
             "completed_at": completed_at,
             "error_message": error_message
         })
@@ -69,12 +78,10 @@ pub async fn get_analysis(db: &Database, params: Value) -> Result<Value> {
         .map_err(|_| anyhow::anyhow!("Invalid analysis_id parameter"))?;
 
     let row = sqlx::query(
-        "SELECT a.id, a.project_id, a.file_id, a.status, a.created_at, a.completed_at, 
-         a.error_message, a.summary, ar.errors, ar.warnings, ar.recommendations, 
-         ar.patterns, ar.performance_metrics, ar.metadata
-         FROM analyses a
-         LEFT JOIN analysis_results ar ON a.id = ar.analysis_id
-         WHERE a.id = ?"
+        "SELECT id, project_id, log_file_id, status, started_at, completed_at,
+         error_message, result
+         FROM analyses
+         WHERE id = ?"
     )
     .bind(&analysis_id)
     .fetch_optional(&db.pool)
@@ -84,39 +91,35 @@ pub async fn get_analysis(db: &Database, params: Value) -> Result<Value> {
         Some(row) => {
             let id: String = row.get("id");
             let project_id: String = row.get("project_id");
-            let file_id: String = row.get("file_id");
-            let status: String = row.get("status");
-            let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
+            let log_file_id: Option<String> = row.get("log_file_id");
+            let status: i32 = row.get("status");
+            let started_at: chrono::DateTime<chrono::Utc> = row.get("started_at");
             let completed_at: Option<chrono::DateTime<chrono::Utc>> = row.get("completed_at");
             let error_message: Option<String> = row.get("error_message");
-            let summary: Option<String> = row.get("summary");
-            let errors: Option<String> = row.get("errors");
-            let warnings: Option<String> = row.get("warnings");
-            let recommendations: Option<String> = row.get("recommendations");
-            let patterns: Option<String> = row.get("patterns");
-            let performance_metrics: Option<String> = row.get("performance_metrics");
-            let metadata: Option<String> = row.get("metadata");
+            let result: Option<String> = row.get("result");
 
-            let errors_value: Value = errors.as_ref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or(Value::Array(vec![]));
-            let warnings_value: Value = warnings.as_ref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or(Value::Array(vec![]));
-            let recommendations_value: Value = recommendations.as_ref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or(Value::Array(vec![]));
-            let patterns_value: Value = patterns.as_ref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or(Value::Array(vec![]));
-            let performance_value: Value = performance_metrics.as_ref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or(Value::Object(serde_json::Map::new()));
-            let metadata_value: Value = metadata.as_ref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or(Value::Object(serde_json::Map::new()));
+            // Convert status code to string
+            let status_str = match status {
+                0 => "pending",
+                1 => "running",
+                2 => "completed",
+                3 => "failed",
+                _ => "unknown"
+            };
+
+            // Parse the result JSON if available
+            let result_value: Value = result
+                .as_ref()
+                .and_then(|s| serde_json::from_str(s).ok())
+                .unwrap_or(Value::Object(serde_json::Map::new()));
 
             Ok(serde_json::json!({
                 "id": id,
                 "project_id": project_id,
-                "file_id": file_id,
-                "status": status,
-                "summary": summary,
-                "errors": errors_value,
-                "warnings": warnings_value,
-                "recommendations": recommendations_value,
-                "patterns": patterns_value,
-                "performance_metrics": performance_value,
-                "metadata": metadata_value,
-                "created_at": created_at,
+                "log_file_id": log_file_id,
+                "status": status_str,
+                "result": result_value,
+                "started_at": started_at,
                 "completed_at": completed_at,
                 "error_message": error_message
             }))
@@ -140,27 +143,25 @@ pub async fn get_analysis_status(db: &Database, params: Value) -> Result<Value> 
     match row {
         Some(row) => {
             let id: String = row.get("id");
-            let status: String = row.get("status");
+            let status: i32 = row.get("status");
             let error_message: Option<String> = row.get("error_message");
-            let progress = calculate_progress(&status);
+
+            // Convert status code to string and calculate progress
+            let (status_str, progress) = match status {
+                0 => ("pending", 0),
+                1 => ("running", 50),
+                2 => ("completed", 100),
+                3 => ("failed", 100),
+                _ => ("unknown", 0)
+            };
+
             Ok(serde_json::json!({
                 "id": id,
-                "status": status,
+                "status": status_str,
                 "progress": progress,
                 "error_message": error_message
             }))
         }
         None => Err(anyhow::anyhow!("Analysis not found: {}", analysis_id))
-    }
-}
-
-/// Calculate progress percentage based on status
-fn calculate_progress(status: &str) -> i32 {
-    match status {
-        "pending" => 0,
-        "running" => 50,
-        "completed" => 100,
-        "failed" => 100,
-        _ => 0
     }
 }

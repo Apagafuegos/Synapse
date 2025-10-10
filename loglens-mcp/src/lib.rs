@@ -14,7 +14,22 @@ pub struct Database {
 
 impl Database {
     pub async fn new(database_url: &str) -> anyhow::Result<Self> {
-        let pool = SqlitePool::connect(database_url).await?;
+        use sqlx::sqlite::SqliteConnectOptions;
+        use std::str::FromStr;
+
+        // Parse database URL
+        let opts = SqliteConnectOptions::from_str(database_url)?
+            .create_if_missing(true);
+
+        // Create connection pool
+        let pool = SqlitePool::connect_with(opts).await?;
+
+        // Run migrations from loglens-web/migrations
+        // This ensures the database has the proper schema including log_files table
+        sqlx::migrate!("../loglens-web/migrations")
+            .run(&pool)
+            .await?;
+
         Ok(Self { pool })
     }
 }

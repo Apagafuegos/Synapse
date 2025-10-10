@@ -371,11 +371,15 @@ async fn start_dashboard() -> Result<()> {
 /// Start the MCP server
 async fn start_mcp_server(transport: McpTransport, port: u16) -> Result<()> {
     use loglens_mcp::{create_server, Database, Config};
-    use loglens_core::db_path::get_database_path;
-    
+    use loglens_core::db_path::{get_database_path, ensure_data_dir};
+
+    // Ensure data directory exists
+    ensure_data_dir()?;
+
     // Initialize database
     let database_path = get_database_path();
-    let db = Database::new(&database_path.to_string_lossy()).await?;
+    let db_url = format!("sqlite://{}", database_path.to_string_lossy());
+    let db = Database::new(&db_url).await?;
     
     // Create server configuration
     let config = Config::default();
