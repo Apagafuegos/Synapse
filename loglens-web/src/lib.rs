@@ -330,26 +330,42 @@ pub async fn start_server(port: u16) -> anyhow::Result<()> {
     config.port = port;
 
     // Determine frontend directory path
-    let frontend_path = PathBuf::from(&config.frontend_dir);
+    let mut frontend_path = PathBuf::from(&config.frontend_dir);
+
+    // Canonicalize to absolute path if the path exists
+    // This is critical for Windows compatibility with ServeDir
+    if frontend_path.exists() {
+        match frontend_path.canonicalize() {
+            Ok(canonical_path) => {
+                tracing::info!("Canonicalized frontend path: {}", canonical_path.display());
+                frontend_path = canonical_path;
+            }
+            Err(e) => {
+                tracing::warn!("Failed to canonicalize frontend path: {}", e);
+            }
+        }
+    }
+
     let index_path = frontend_path.join("index.html");
 
     tracing::info!("Serving frontend from: {}", frontend_path.display());
+    tracing::info!("Frontend path is absolute: {}", frontend_path.is_absolute());
+    tracing::info!("Frontend path exists: {}", frontend_path.exists());
+    tracing::info!("Index.html exists: {}", index_path.exists());
 
     // Create application state
     let state = AppState::new(config.clone()).await?;
+
+    // Create SPA-compatible static file service
+    let serve_dir = ServeDir::new(&frontend_path)
+        .not_found_service(ServeFile::new(&index_path));
 
     // Build router with proper SPA fallback
     let app = Router::new()
         .route("/api/health", get(handlers::dashboard::get_dashboard_stats))
         .nest("/api", routes::api_routes())
-        .nest_service(
-            "/",
-            ServeDir::new(&frontend_path)
-                .not_found_service(ServeFile::new(&index_path))
-        )
-        .fallback_service(
-            ServeFile::new(&index_path)
-        )
+        // Serve static files and handle SPA routing with fallback
+        .fallback_service(serve_dir)
         .layer(ServiceBuilder::new()
             .layer(TraceLayer::new_for_http())
             .layer(CorsLayer::permissive())
