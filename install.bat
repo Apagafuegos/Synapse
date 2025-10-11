@@ -107,21 +107,33 @@ echo ========================================
 echo.
 
 REM Check if npm is available
-npm --version >nul 2>&1
-if %errorlevel% neq 0 (
+echo Checking for npm...
+where npm
+set NPM_CHECK=!errorlevel!
+echo npm check returned: !NPM_CHECK!
+
+if !NPM_CHECK! neq 0 (
+    echo.
     echo ❌ npm not found! Node.js is required to build the frontend.
+    echo.
+    echo Checking if npm.cmd exists...
+    where npm.cmd
+    echo.
+    echo Current PATH:
+    echo !PATH!
     echo.
     echo Please install Node.js from https://nodejs.org/
     echo Then run this installer again.
     echo.
-    echo ⚠️  Continuing without frontend (dashboard will not work)
+    echo ⚠️  Continuing without frontend ^(dashboard will not work^)
     echo.
-    pause
-    goto :skip_frontend_build
+    echo Press any key to continue without frontend...
+    pause >nul
+    goto skip_frontend_build
 )
 
-echo ✅ npm found:
-npm --version
+echo ✅ npm found!
+call npm --version
 echo.
 
 echo 📁 Changing to frontend directory...
