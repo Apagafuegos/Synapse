@@ -1,4 +1,4 @@
-use sqlx::SqlitePool;
+use sqlx::{SqlitePool, Row};
 
 pub mod tools;
 pub mod server;
@@ -17,6 +17,8 @@ impl Database {
         use sqlx::sqlite::SqliteConnectOptions;
         use std::str::FromStr;
 
+        tracing::debug!("Creating database with URL: {}", database_url);
+
         // Parse database URL
         let opts = SqliteConnectOptions::from_str(database_url)?
             .create_if_missing(true);
@@ -24,11 +26,55 @@ impl Database {
         // Create connection pool
         let pool = SqlitePool::connect_with(opts).await?;
 
-        // Run migrations from loglens-web/migrations
-        // This ensures the database has the proper schema including log_files table
-        sqlx::migrate!("../loglens-web/migrations")
+        // Try to run migrations with better error handling
+        tracing::debug!("Running database migrations...");
+        match sqlx::migrate!("../loglens-web/migrations")
             .run(&pool)
-            .await?;
+            .await 
+        {
+            Ok(_) => {
+                tracing::info!("Database migrations completed successfully");
+            }
+            Err(e) => {
+                let error_msg = e.to_string();
+                tracing::error!("Migration error: {}", error_msg);
+                
+                // If it's a table already exists error, check if we can continue
+                if error_msg.contains("already exists") {
+                    tracing::warn!("Database tables already exist. This is likely okay if schema is compatible.");
+                    
+                    // Verify essential tables exist
+                    let table_count_result = sqlx::query(
+                        "SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name IN ('projects', 'analyses', 'log_files')"
+                    )
+                    .fetch_one(&pool)
+                    .await;
+                    
+                    let tables_exist = match table_count_result {
+                        Ok(row) => {
+                            let count = row.get::<i64, _>("count");
+                            tracing::debug!("Table count query result: {}", count);
+                            count
+                        },
+                        Err(e) => {
+                            tracing::error!("Failed to check table existence: {}", e);
+                            return Err(anyhow::anyhow!("Failed to verify database schema: {}", e));
+                        }
+                    };
+                    
+                    tracing::debug!("Found {} essential tables", tables_exist);
+                    tracing::info!("Expected 3 essential tables (projects, analyses, log_files), found {}", tables_exist);
+                    
+                    if tables_exist >= 3 {
+                        tracing::info!("Essential database tables exist, proceeding...");
+                    } else {
+                        return Err(anyhow::anyhow!("Database is in inconsistent state: expected 3 essential tables, found {}", tables_exist));
+                    }
+                } else {
+                    return Err(anyhow::anyhow!("Database migration failed: {}", e));
+                }
+            }
+        }
 
         Ok(Self { pool })
     }
@@ -55,5 +101,5 @@ pub async fn create_server(db: Database, config: Config) -> anyhow::Result<McpSe
     Ok(McpServer::new(db, config))
 }
 
-// Re-export the server struct
-pub use server::McpServer;
+// Re-export the server and handler structs
+pub use server::{McpServer, LogLensMcpHandler};

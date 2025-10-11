@@ -1,20 +1,13 @@
 use std::path::PathBuf;
 use std::env;
+use dirs;
 
-/// Find the project root by looking for .loglens directory
-/// Searches from current directory upwards
-fn find_project_root() -> Option<PathBuf> {
-    let current_dir = env::current_dir().ok()?;
-    let mut path = current_dir.as_path();
-
-    loop {
-        let loglens_dir = path.join(".loglens");
-        if loglens_dir.exists() && loglens_dir.is_dir() {
-            return Some(path.to_path_buf());
-        }
-
-        path = path.parent()?;
-    }
+/// Get the global LogLens data directory (~/.loglens/data)
+fn get_global_data_dir() -> PathBuf {
+    let home_dir = dirs::home_dir().unwrap_or_else(|| {
+        panic!("Could not find home directory");
+    });
+    home_dir.join(".loglens").join("data")
 }
 
 /// Get the unified LogLens database path
@@ -23,8 +16,8 @@ fn find_project_root() -> Option<PathBuf> {
 ///
 /// Priority:
 /// 1. LOGLENS_DATABASE_PATH env var (absolute path override)
-/// 2. Project-local: .loglens/index.db (search upwards from cwd)
-/// 3. Error - no valid database location found
+/// 2. Global: ~/.loglens/data/loglens.db (ALWAYS use this)
+/// 3. Error - fallback failed
 ///
 /// This ensures web server, MCP server, and CLI all share the same database.
 pub fn get_database_path() -> PathBuf {
@@ -33,18 +26,9 @@ pub fn get_database_path() -> PathBuf {
         return PathBuf::from(db_path);
     }
 
-    // Find project root and use .loglens/index.db
-    if let Some(project_root) = find_project_root() {
-        return project_root.join(".loglens").join("index.db");
-    }
-
-    // FATAL: No .loglens directory found
-    // User must run 'loglens init' first or set LOGLENS_DATABASE_PATH
-    panic!(
-        "No LogLens project found! \n\
-        Please run 'loglens init' in your project directory first, \n\
-        or set LOGLENS_DATABASE_PATH environment variable."
-    );
+    // ALWAYS use the global database path at ~/.loglens/data/loglens.db
+    let global_data_dir = get_global_data_dir();
+    global_data_dir.join("loglens.db")
 }
 
 /// Get the .loglens directory path
@@ -57,16 +41,8 @@ pub fn get_data_dir() -> PathBuf {
             .unwrap_or_else(|| PathBuf::from("."));
     }
 
-    // Find project root and return .loglens directory
-    if let Some(project_root) = find_project_root() {
-        return project_root.join(".loglens");
-    }
-
-    panic!(
-        "No LogLens project found! \n\
-        Please run 'loglens init' in your project directory first, \n\
-        or set LOGLENS_DATABASE_PATH environment variable."
-    );
+    // ALWAYS use the global data directory
+    get_global_data_dir()
 }
 
 /// Ensure the .loglens directory exists
@@ -79,8 +55,6 @@ pub fn ensure_data_dir() -> std::io::Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use tempfile::TempDir;
 
     #[test]
     fn test_database_path_env_override() {
@@ -92,25 +66,10 @@ mod tests {
     }
 
     #[test]
-    fn test_find_project_root() {
-        let temp_dir = TempDir::new().unwrap();
-        let project_root = temp_dir.path();
-        let loglens_dir = project_root.join(".loglens");
-        fs::create_dir_all(&loglens_dir).unwrap();
-
-        // Change to subdirectory
-        let sub_dir = project_root.join("subdir");
-        fs::create_dir_all(&sub_dir).unwrap();
-
-        // Save current dir
-        let original_dir = env::current_dir().unwrap();
-
-        // Change to subdir and test
-        env::set_current_dir(&sub_dir).unwrap();
-        let found_root = find_project_root();
-        assert_eq!(found_root, Some(project_root.to_path_buf()));
-
-        // Restore original dir
-        env::set_current_dir(original_dir).unwrap();
+    fn test_global_database_path() {
+        // Test that the database path always points to the global location
+        let db_path = get_database_path();
+        let expected = dirs::home_dir().unwrap().join(".loglens").join("data").join("loglens.db");
+        assert_eq!(db_path, expected);
     }
 }
