@@ -12,8 +12,8 @@ use crate::tools::{list_projects, get_project, list_analyses, get_analysis, get_
 /// Main MCP server structure
 #[derive(Clone)]
 pub struct McpServer {
-    db: Database,
-    config: Config,
+    pub db: Database,
+    pub config: Config,
 }
 
 impl McpServer {
@@ -34,8 +34,9 @@ impl McpServer {
 }
 
 /// MCP Server Handler implementing the RMCP ServerHandler trait
+#[derive(Clone)]
 pub struct LogLensMcpHandler {
-    server: Arc<McpServer>,
+    pub server: Arc<McpServer>,
 }
 
 impl LogLensMcpHandler {
@@ -172,12 +173,17 @@ impl ServerHandler for LogLensMcpHandler {
 }
 
 impl McpServer {
+    /// Create a handler for this server
+    pub fn create_handler(&self) -> LogLensMcpHandler {
+        LogLensMcpHandler::new(Arc::new(self.clone()))
+    }
+
     /// Start the MCP server with stdio transport
     /// IMPORTANT: No logging is done here to avoid contaminating the JSON-RPC protocol on stdout
     pub async fn start_stdio(&self) -> anyhow::Result<()> {
         use crate::transport::{TransportType, create_and_run_transport};
 
-        let handler = Arc::new(LogLensMcpHandler::new(Arc::new(self.clone())));
+        let handler = Arc::new(self.create_handler());
 
         // NO LOGGING - stdio transport requires pure JSON-RPC on stdout
         // Any log output will corrupt the protocol and break MCP clients
@@ -189,7 +195,7 @@ impl McpServer {
     pub async fn start_http(&self, port: u16) -> anyhow::Result<()> {
         use crate::transport::{TransportType, create_and_run_transport};
         
-        let handler = Arc::new(LogLensMcpHandler::new(Arc::new(self.clone())));
+        let handler = Arc::new(self.create_handler());
         
         tracing::info!("Starting LogLens MCP server with HTTP transport on port {}", port);
         tracing::info!("Server name: {}", self.config.server_name);

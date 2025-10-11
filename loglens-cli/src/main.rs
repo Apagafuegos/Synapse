@@ -6,6 +6,14 @@ use std::path::PathBuf;
 use tracing::{error, info};
 use tracing_subscriber;
 
+/// Get the global LogLens database path (~/.loglens/data/loglens.db)
+fn get_global_database_path() -> PathBuf {
+    let home_dir = dirs::home_dir().unwrap_or_else(|| {
+        panic!("Could not find home directory");
+    });
+    home_dir.join(".loglens").join("data").join("loglens.db")
+}
+
 #[derive(Clone, ValueEnum, Debug)]
 enum McpTransport {
     Stdio,
@@ -371,14 +379,16 @@ async fn start_dashboard() -> Result<()> {
 /// Start the MCP server
 async fn start_mcp_server(transport: McpTransport, port: u16) -> Result<()> {
     use loglens_mcp::{create_server, Database, Config};
-    use loglens_core::db_path::{get_database_path, ensure_data_dir};
 
-    // Ensure data directory exists
-    ensure_data_dir()?;
-
-    // Initialize database
-    let database_path = get_database_path();
+    // MCP server should ALWAYS use the global database at ~/.loglens/loglens.db
+    let database_path = get_global_database_path();
     let db_url = format!("sqlite://{}", database_path.to_string_lossy());
+    
+    // Ensure global data directory exists
+    let global_data_dir = database_path.parent().unwrap();
+    std::fs::create_dir_all(global_data_dir)?;
+    
+    tracing::info!("MCP server using global database: {}", database_path.display());
     let db = Database::new(&db_url).await?;
     
     // Create server configuration

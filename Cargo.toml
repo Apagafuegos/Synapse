@@ -24,7 +24,7 @@ directories = "5.0"
 chrono = { version = "0.4", features = ["serde"] }
 askama = { version = "0.12", features = ["serde-json"] }
 uuid = { version = "1.0", features = ["v4"] }
-rmcp = { version = "0.2.0", features = ["server", "transport-io"] }
+rmcp = { version = "0.2.0", features = ["server", "transport-io", "transport-sse-server"] }
 schemars = { version = "0.8", features = ["derive"] }
 encoding_rs = "0.8"
 tempfile = "3.8"
