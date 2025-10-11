@@ -167,11 +167,11 @@ echo ✅ npm install completed successfully
 del npm-install.log 2>nul
 echo.
 
-echo 🔨 Running npm run build...
+echo 🔨 Running npm run build (skipping WASM for Windows compatibility)...
 echo [This may take a few minutes, please wait...]
-call npm run build > npm-build.log 2>&1
+call npm run build:skip-wasm > npm-build.log 2>&1
 set NPM_BUILD_ERROR=!errorlevel!
-echo npm run build returned exit code: !NPM_BUILD_ERROR!
+echo npm run build:skip-wasm returned exit code: !NPM_BUILD_ERROR!
 
 if !NPM_BUILD_ERROR! neq 0 (
     echo ❌ Error: Frontend build failed with exit code !NPM_BUILD_ERROR!
