@@ -89,42 +89,117 @@ if %errorlevel% neq 0 (
 )
 
 REM Build frontend
+echo.
+echo ========================================
 echo 🎨 Building frontend...
-cd loglens-web\frontend-react
+echo ========================================
+echo.
+
+REM Check if npm is available
 npm --version >nul 2>&1
-if %errorlevel% equ 0 (
-    npm install
-    if %errorlevel% neq 0 (
-        echo ❌ Error: npm install failed
-        cd ..\..
-        exit /b 1
-    )
-    
-    npm run build
-    if %errorlevel% neq 0 (
-        echo ❌ Error: Frontend build failed
-        cd ..\..
-        exit /b 1
-    )
-    
-    cd ..\..
-    
-    REM Create frontend directory in release target
-    echo 📦 Preparing frontend files for installation...
-    if not exist "target\release\frontend" mkdir "target\release\frontend"
-    xcopy /E /I /Y "loglens-web\frontend-react\dist\*" "target\release\frontend\"
-    
-    if not exist "target\release\frontend\index.html" (
-        echo ❌ Error: Frontend build failed - index.html not found
-        exit /b 1
-    )
-    echo ✅ Frontend files prepared successfully
-) else (
-    echo ⚠️  Warning: npm not found, frontend will not be built
-    echo    Please install Node.js and npm, then run:
-    echo    cd loglens-web\frontend-react && npm install && npm run build
-    cd ..\..
+if %errorlevel% neq 0 (
+    echo ❌ npm not found! Node.js is required to build the frontend.
+    echo.
+    echo Please install Node.js from https://nodejs.org/
+    echo Then run this installer again.
+    echo.
+    echo ⚠️  Continuing without frontend (dashboard will not work)
+    echo.
+    pause
+    goto :skip_frontend_build
 )
+
+echo ✅ npm found:
+npm --version
+echo.
+
+echo 📁 Changing to frontend directory...
+cd loglens-web\frontend-react
+if %errorlevel% neq 0 (
+    echo ❌ Error: Could not change to loglens-web\frontend-react directory
+    pause
+    exit /b 1
+)
+echo Current directory: %CD%
+echo.
+
+echo 📦 Running npm install...
+call npm install 2>&1
+set NPM_INSTALL_ERROR=%errorlevel%
+echo npm install returned exit code: %NPM_INSTALL_ERROR%
+if %NPM_INSTALL_ERROR% neq 0 (
+    echo ❌ Error: npm install failed with exit code %NPM_INSTALL_ERROR%
+    echo.
+    cd ..\..
+    echo.
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
+)
+echo ✅ npm install completed successfully
+echo.
+
+echo 🔨 Running npm run build...
+call npm run build 2>&1
+set NPM_BUILD_ERROR=%errorlevel%
+echo npm run build returned exit code: %NPM_BUILD_ERROR%
+if %NPM_BUILD_ERROR% neq 0 (
+    echo ❌ Error: Frontend build failed with exit code %NPM_BUILD_ERROR%
+    echo.
+    cd ..\..
+    echo.
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
+)
+echo ✅ Frontend build completed successfully
+echo.
+
+echo 📁 Returning to workspace root...
+cd ..\..
+echo Current directory: %CD%
+echo.
+
+REM Create frontend directory in release target
+echo 📦 Preparing frontend files for installation...
+if not exist "target\release\frontend" mkdir "target\release\frontend"
+
+echo 📋 Checking if dist directory exists...
+if not exist "loglens-web\frontend-react\dist" (
+    echo ❌ Error: dist directory not found at loglens-web\frontend-react\dist
+    echo The build may have failed silently
+    pause
+    exit /b 1
+)
+
+if not exist "loglens-web\frontend-react\dist\index.html" (
+    echo ❌ Error: index.html not found in dist directory
+    echo Build completed but output is invalid
+    pause
+    exit /b 1
+)
+
+echo ✅ Frontend build output verified
+echo.
+
+echo 📂 Copying frontend files to target\release\frontend...
+xcopy /E /I /Y "loglens-web\frontend-react\dist\*" "target\release\frontend\"
+set XCOPY_ERROR=%errorlevel%
+if %XCOPY_ERROR% neq 0 (
+    echo ❌ Error: xcopy failed with exit code %XCOPY_ERROR%
+    pause
+    exit /b 1
+)
+
+if not exist "target\release\frontend\index.html" (
+    echo ❌ Error: Frontend files not copied correctly - index.html not found in target
+    pause
+    exit /b 1
+)
+echo ✅ Frontend files prepared successfully
+echo.
+
+:skip_frontend_build
 
 if not exist "target\release\loglens.exe" (
     echo ❌ Error: Build failed - executable not found
