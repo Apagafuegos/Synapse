@@ -1,9 +1,20 @@
 @echo off
+setlocal enabledelayedexpansion
 REM LogLens Installation Script for Windows
 REM Compiles and installs LogLens to %USERPROFILE%\.loglens\bin with unified data directory
 
 echo 🚀 LogLens Installation Script for Windows
 echo ==============================
+
+REM Prevent window from closing on errors
+if not defined IN_SUBPROCESS (
+    set IN_SUBPROCESS=1
+    "%~f0" %*
+    echo.
+    echo Script completed. Press any key to exit...
+    pause >nul
+    exit /b
+)
 
 REM Check if we're in the correct directory
 if not exist "Cargo.toml" (
@@ -124,35 +135,45 @@ echo Current directory: %CD%
 echo.
 
 echo 📦 Running npm install...
-call npm install 2>&1
-set NPM_INSTALL_ERROR=%errorlevel%
-echo npm install returned exit code: %NPM_INSTALL_ERROR%
-if %NPM_INSTALL_ERROR% neq 0 (
-    echo ❌ Error: npm install failed with exit code %NPM_INSTALL_ERROR%
+echo [This may take a few minutes, please wait...]
+call npm install > npm-install.log 2>&1
+set NPM_INSTALL_ERROR=!errorlevel!
+echo npm install returned exit code: !NPM_INSTALL_ERROR!
+
+if !NPM_INSTALL_ERROR! neq 0 (
+    echo ❌ Error: npm install failed with exit code !NPM_INSTALL_ERROR!
+    echo.
+    echo Last 20 lines of npm output:
+    type npm-install.log | more +1
     echo.
     cd ..\..
-    echo.
-    echo Press any key to exit...
-    pause >nul
+    del npm-install.log 2>nul
+    echo Script failed. Window will stay open.
     exit /b 1
 )
 echo ✅ npm install completed successfully
+del npm-install.log 2>nul
 echo.
 
 echo 🔨 Running npm run build...
-call npm run build 2>&1
-set NPM_BUILD_ERROR=%errorlevel%
-echo npm run build returned exit code: %NPM_BUILD_ERROR%
-if %NPM_BUILD_ERROR% neq 0 (
-    echo ❌ Error: Frontend build failed with exit code %NPM_BUILD_ERROR%
+echo [This may take a few minutes, please wait...]
+call npm run build > npm-build.log 2>&1
+set NPM_BUILD_ERROR=!errorlevel!
+echo npm run build returned exit code: !NPM_BUILD_ERROR!
+
+if !NPM_BUILD_ERROR! neq 0 (
+    echo ❌ Error: Frontend build failed with exit code !NPM_BUILD_ERROR!
+    echo.
+    echo Last 20 lines of npm output:
+    type npm-build.log | more +1
     echo.
     cd ..\..
-    echo.
-    echo Press any key to exit...
-    pause >nul
+    del npm-build.log 2>nul
+    echo Script failed. Window will stay open.
     exit /b 1
 )
 echo ✅ Frontend build completed successfully
+del npm-build.log 2>nul
 echo.
 
 echo 📁 Returning to workspace root...
