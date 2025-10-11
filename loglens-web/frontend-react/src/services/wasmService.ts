@@ -36,27 +36,41 @@ class WasmService {
       this.wasmModule = wasmModule as LogLensWasm;
       console.log('[WASM] LogLens WASM module loaded successfully');
     } catch (error) {
-      console.error('[WASM] Failed to load WASM module:', error);
-      throw new Error('Failed to initialize WASM module');
+      console.warn('[WASM] WASM module not available, continuing without WASM optimization:', error);
+      // Don't throw - WASM is optional, the app works without it
+      this.wasmModule = null;
     }
   }
 
-  private async ensureInitialized(): Promise<LogLensWasm> {
+  private async ensureInitialized(): Promise<LogLensWasm | null> {
     if (!this.initPromise) {
       this.initPromise = this.initialize();
     }
 
     await this.initPromise;
 
-    if (!this.wasmModule) {
-      throw new Error('WASM module not available');
-    }
-
+    // Return null if WASM not available (instead of throwing)
     return this.wasmModule;
   }
 
   async parseLogPreview(content: string, maxLines: number = 1000): Promise<LogParseResult> {
     const wasm = await this.ensureInitialized();
+
+    // If WASM not available, return basic parsed result
+    if (!wasm) {
+      console.log('[WASM] WASM not available, using JavaScript fallback for parsing');
+      const lines = content.split('\n').slice(0, maxLines);
+      return {
+        lines: lines.map((line, index) => ({
+          line_number: index + 1,
+          content: line,
+          level: this.detectLogLevel(line),
+          timestamp: logUtils.parseTimestamp(line)?.toISOString(),
+        })),
+        total_lines: lines.length,
+        truncated: content.split('\n').length > maxLines,
+      } as LogParseResult;
+    }
 
     try {
       console.log(`[WASM] Parsing log preview: ${content.length} chars, max ${maxLines} lines`);
@@ -82,8 +96,29 @@ class WasmService {
     }
   }
 
+  private detectLogLevel(line: string): string | undefined {
+    const upperLine = line.toUpperCase();
+    if (upperLine.includes('ERROR') || upperLine.includes('[ERR]')) return 'ERROR';
+    if (upperLine.includes('WARN') || upperLine.includes('[WRN]')) return 'WARN';
+    if (upperLine.includes('INFO') || upperLine.includes('[INF]')) return 'INFO';
+    if (upperLine.includes('DEBUG') || upperLine.includes('[DBG]')) return 'DEBUG';
+    return undefined;
+  }
+
   async filterLogsByLevel(content: string, minLevel: LogLevel): Promise<string> {
     const wasm = await this.ensureInitialized();
+
+    // If WASM not available, use JavaScript fallback
+    if (!wasm) {
+      console.log('[WASM] WASM not available, using JavaScript fallback for filtering');
+      const lines = content.split('\n');
+      const filtered = lines.filter(line => {
+        const level = this.detectLogLevel(line);
+        if (!level) return true; // Keep lines without clear level
+        return this.compareLevels(level, minLevel) >= 0;
+      });
+      return filtered.join('\n');
+    }
 
     try {
       console.log(`[WASM] Filtering logs by level: ${minLevel}`);
@@ -101,8 +136,27 @@ class WasmService {
     }
   }
 
+  private compareLevels(level1: string, level2: string): number {
+    const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+    return levels.indexOf(level1.toUpperCase()) - levels.indexOf(level2.toUpperCase());
+  }
+
   async countLogLevels(content: string): Promise<Record<string, number>> {
     const wasm = await this.ensureInitialized();
+
+    // If WASM not available, use JavaScript fallback
+    if (!wasm) {
+      console.log('[WASM] WASM not available, using JavaScript fallback for counting');
+      const counts: Record<string, number> = { ERROR: 0, WARN: 0, INFO: 0, DEBUG: 0 };
+      const lines = content.split('\n');
+      for (const line of lines) {
+        const level = this.detectLogLevel(line);
+        if (level && counts[level] !== undefined) {
+          counts[level]++;
+        }
+      }
+      return counts;
+    }
 
     try {
       console.log('[WASM] Counting log levels');
@@ -138,6 +192,17 @@ class WasmService {
 
     const wasm = await this.ensureInitialized();
 
+    // If WASM not available, use JavaScript fallback
+    if (!wasm) {
+      console.log('[WASM] WASM not available, using JavaScript fallback for search');
+      const searchQuery = caseSensitive ? query : query.toLowerCase();
+      const lines = content.split('\n');
+      return lines.filter(line => {
+        const searchLine = caseSensitive ? line : line.toLowerCase();
+        return searchLine.includes(searchQuery);
+      });
+    }
+
     try {
       console.log(`[WASM] Searching logs for: "${query}"`);
       const startTime = performance.now();
@@ -157,6 +222,11 @@ class WasmService {
 
   async getMemoryUsage(): Promise<{ used: number; total: number }> {
     const wasm = await this.ensureInitialized();
+
+    // If WASM not available, return zero
+    if (!wasm) {
+      return { used: 0, total: 0 };
+    }
 
     try {
       // Get performance stats from WASM module which may include memory info
