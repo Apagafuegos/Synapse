@@ -30,45 +30,60 @@ impl Default for WebConfig {
             // Frontend directory - check multiple locations
             // CRITICAL: Always use absolute paths for Windows compatibility
             frontend_dir: {
-                // Check if running from installed binary
                 if let Ok(exe_path) = std::env::current_exe() {
                     let install_dir = exe_path.parent().unwrap_or_else(|| Path::new("."));
                     let frontend_path = install_dir.join("frontend");
 
-                    // Check if frontend exists next to executable (installed location)
+                    // 1. Check if frontend exists next to executable (installed location)
                     if frontend_path.exists() && frontend_path.join("index.html").exists() {
-                        // Return absolute path for Windows compatibility
                         frontend_path.canonicalize()
                             .unwrap_or(frontend_path)
                             .to_string_lossy()
                             .to_string()
                     }
-                    // Check development path relative to workspace root
-                    else {
-                        let dev_path = Path::new("loglens-web/frontend-react/dist");
-                        if dev_path.exists() && dev_path.join("index.html").exists() {
-                            // Convert to absolute path
-                            dev_path.canonicalize()
-                                .unwrap_or(dev_path.to_path_buf())
-                                .to_string_lossy()
-                                .to_string()
-                        }
-                        // Check if we're in the loglens-web directory directly
-                        else {
-                            let local_path = Path::new("frontend-react/dist");
-                            if local_path.exists() && local_path.join("index.html").exists() {
-                                // Convert to absolute path
-                                local_path.canonicalize()
-                                    .unwrap_or(local_path.to_path_buf())
-                                    .to_string_lossy()
-                                    .to_string()
-                            }
-                            // Last resort: return the expected install path even if it doesn't exist
-                            // Use absolute path for proper error reporting
-                            else {
+                    // 2. Check if running from target/release - go up to workspace root
+                    else if install_dir.ends_with("target/release") || install_dir.ends_with("target\\release") {
+                        // Go up two levels: target/release -> target -> workspace root
+                        if let Some(target_dir) = install_dir.parent() {
+                            if let Some(workspace_root) = target_dir.parent() {
+                                let workspace_frontend = workspace_root.join("loglens-web/frontend-react/dist");
+                                if workspace_frontend.exists() && workspace_frontend.join("index.html").exists() {
+                                    workspace_frontend.canonicalize()
+                                        .unwrap_or(workspace_frontend)
+                                        .to_string_lossy()
+                                        .to_string()
+                                } else {
+                                    // Fallback to install path
+                                    frontend_path.to_string_lossy().to_string()
+                                }
+                            } else {
+                                // Fallback to install path
                                 frontend_path.to_string_lossy().to_string()
                             }
+                        } else {
+                            // Fallback to install path
+                            frontend_path.to_string_lossy().to_string()
                         }
+                    }
+                    // 3. Check development path relative to current working directory
+                    else if Path::new("loglens-web/frontend-react/dist/index.html").exists() {
+                        Path::new("loglens-web/frontend-react/dist")
+                            .canonicalize()
+                            .unwrap_or_else(|_| Path::new("loglens-web/frontend-react/dist").to_path_buf())
+                            .to_string_lossy()
+                            .to_string()
+                    }
+                    // 4. Check if we're in the loglens-web directory directly
+                    else if Path::new("frontend-react/dist/index.html").exists() {
+                        Path::new("frontend-react/dist")
+                            .canonicalize()
+                            .unwrap_or_else(|_| Path::new("frontend-react/dist").to_path_buf())
+                            .to_string_lossy()
+                            .to_string()
+                    }
+                    // Last resort: return the expected install path
+                    else {
+                        frontend_path.to_string_lossy().to_string()
                     }
                 } else {
                     // Fallback to development path

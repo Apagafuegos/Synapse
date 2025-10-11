@@ -272,3 +272,6 @@ echo 🎉 Installation complete!
 echo.
 echo To use LogLens from anywhere, add %USERPROFILE%\.loglens\bin to your PATH
 echo or run it directly from: %USERPROFILE%\.loglens\bin\loglens.exe
+echo.
+echo Press any key to close this window...
+pause >nul
