@@ -165,6 +165,11 @@ if %errorlevel% neq 0 (
 echo Current directory: %CD%
 echo.
 
+echo 🧹 Cleaning previous node_modules and package-lock.json...
+if exist "node_modules" rmdir /s /q node_modules
+if exist "package-lock.json" del /f /q package-lock.json
+echo.
+
 echo 📦 Running npm install...
 echo [This may take a few minutes, please wait...]
 call npm install > npm-install.log 2>&1
