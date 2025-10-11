@@ -36,8 +36,8 @@ class WasmService {
       this.wasmModule = wasmModule as LogLensWasm;
       console.log('[WASM] LogLens WASM module loaded successfully');
     } catch (error) {
-      console.warn('[WASM] WASM module not available, continuing without WASM optimization:', error);
-      // Don't throw - WASM is optional, the app works without it
+      console.warn('[WASM] WASM module not available, using JavaScript fallbacks:', error);
+      // Don't throw - WASM is optional, the app works without it with JavaScript fallbacks
       this.wasmModule = null;
     }
   }
@@ -59,17 +59,41 @@ class WasmService {
     // If WASM not available, return basic parsed result
     if (!wasm) {
       console.log('[WASM] WASM not available, using JavaScript fallback for parsing');
-      const lines = content.split('\n').slice(0, maxLines);
-      return {
-        lines: lines.map((line, index) => ({
+      const allLines = content.split('\n');
+      const lines = allLines.slice(0, maxLines);
+
+      // Count lines by level
+      let errorLines = 0;
+      let warningLines = 0;
+      let infoLines = 0;
+      let debugLines = 0;
+
+      const linesByLevel = lines.map((line, index) => {
+        const level = this.detectLogLevel(line);
+
+        // Count by level
+        if (level === 'ERROR') errorLines++;
+        else if (level === 'WARN') warningLines++;
+        else if (level === 'INFO') infoLines++;
+        else if (level === 'DEBUG') debugLines++;
+
+        return {
           line_number: index + 1,
-          content: line,
-          level: this.detectLogLevel(line),
+          level: level,
           timestamp: logUtils.parseTimestamp(line)?.toISOString(),
-        })),
+          message: line,
+          is_truncated: false,
+        };
+      });
+
+      return {
         total_lines: lines.length,
-        truncated: content.split('\n').length > maxLines,
-      } as LogParseResult;
+        error_lines: errorLines,
+        warning_lines: warningLines,
+        info_lines: infoLines,
+        debug_lines: debugLines,
+        lines_by_level: linesByLevel,
+      };
     }
 
     try {

@@ -136,6 +136,25 @@ echo ✅ npm found!
 call npm --version
 echo.
 
+REM Check if wasm-pack is installed for WASM build
+echo Checking for wasm-pack...
+wasm-pack --version >nul 2>&1
+if !errorlevel! neq 0 (
+    echo ⚠️  wasm-pack not found - installing it now...
+    echo This is required to build the WASM performance module
+    cargo install wasm-pack
+    if !errorlevel! neq 0 (
+        echo ❌ Error: Failed to install wasm-pack
+        echo Please install it manually: cargo install wasm-pack
+        exit /b 1
+    )
+    echo ✅ wasm-pack installed successfully!
+) else (
+    for /f "tokens=*" %%i in ('wasm-pack --version') do set WASM_PACK_VERSION=%%i
+    echo ✅ Found wasm-pack: !WASM_PACK_VERSION!
+)
+echo.
+
 echo 📁 Changing to frontend directory...
 cd loglens-web\frontend-react
 if %errorlevel% neq 0 (
@@ -167,11 +186,11 @@ echo ✅ npm install completed successfully
 del npm-install.log 2>nul
 echo.
 
-echo 🔨 Running npm run build (skipping WASM for Windows compatibility)...
+echo 🔨 Running npm run build (includes WASM)...
 echo [This may take a few minutes, please wait...]
-call npm run build:skip-wasm > npm-build.log 2>&1
+call npm run build > npm-build.log 2>&1
 set NPM_BUILD_ERROR=!errorlevel!
-echo npm run build:skip-wasm returned exit code: !NPM_BUILD_ERROR!
+echo npm run build returned exit code: !NPM_BUILD_ERROR!
 
 if !NPM_BUILD_ERROR! neq 0 (
     echo ❌ Error: Frontend build failed with exit code !NPM_BUILD_ERROR!
