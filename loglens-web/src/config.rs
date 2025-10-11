@@ -33,12 +33,26 @@ impl Default for WebConfig {
                 if let Ok(exe_path) = std::env::current_exe() {
                     let install_dir = exe_path.parent().unwrap_or_else(|| Path::new("."));
                     let frontend_path = install_dir.join("frontend");
-                    if frontend_path.exists() {
+
+                    // Check if frontend exists next to executable (installed location)
+                    if frontend_path.exists() && frontend_path.join("index.html").exists() {
                         frontend_path.to_string_lossy().to_string()
-                    } else {
+                    }
+                    // Check development path relative to workspace root
+                    else if Path::new("loglens-web/frontend-react/dist/index.html").exists() {
                         "loglens-web/frontend-react/dist".to_string()
                     }
+                    // Check if we're in the loglens-web directory directly
+                    else if Path::new("frontend-react/dist/index.html").exists() {
+                        "frontend-react/dist".to_string()
+                    }
+                    // Last resort: return the expected install path even if it doesn't exist yet
+                    // This allows the server to start and log a clear error message
+                    else {
+                        frontend_path.to_string_lossy().to_string()
+                    }
                 } else {
+                    // Fallback to development path
                     "loglens-web/frontend-react/dist".to_string()
                 }
             },

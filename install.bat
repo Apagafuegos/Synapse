@@ -145,19 +145,34 @@ if %errorlevel% neq 0 (
 
 REM Install frontend files
 echo 🎨 Installing frontend files...
-if exist "target\release\frontend" and exist "target\release\frontend\index.html" (
+if exist "target\release\frontend\index.html" (
     if not exist "%USERPROFILE%\.loglens\bin\frontend" mkdir "%USERPROFILE%\.loglens\bin\frontend"
-    xcopy /E /I /Y "target\release\frontend\*" "%USERPROFILE%\.loglens\bin\frontend\"
-    
+
+    REM Copy all frontend files recursively with proper structure
+    xcopy /E /I /Y /Q "target\release\frontend" "%USERPROFILE%\.loglens\bin\frontend"
+
+    REM Verify installation
     if exist "%USERPROFILE%\.loglens\bin\frontend\index.html" (
         echo ✅ Frontend files installed successfully
+        echo 📁 Frontend location: %USERPROFILE%\.loglens\bin\frontend
+        dir /B "%USERPROFILE%\.loglens\bin\frontend" | findstr /R ".*" > nul
+        if %errorlevel% equ 0 (
+            echo 📄 Frontend files count:
+            dir /B "%USERPROFILE%\.loglens\bin\frontend" | find /C /V ""
+        )
     ) else (
         echo ❌ Error: Frontend installation failed - index.html not copied
+        echo 🔍 Debug: Checking target\release\frontend contents...
+        dir /B "target\release\frontend"
         exit /b 1
     )
 ) else (
-    echo ⚠️  Warning: Frontend files not found in target\release\frontend
+    echo ⚠️  Warning: Frontend files not found in target\release\frontend\index.html
     echo    The web interface may not work correctly
+    if exist "target\release\frontend" (
+        echo 🔍 Debug: Contents of target\release\frontend:
+        dir /B "target\release\frontend"
+    )
 )
 
 REM Set up environment configuration

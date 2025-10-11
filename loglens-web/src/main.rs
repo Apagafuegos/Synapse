@@ -166,7 +166,20 @@ pub async fn create_app(
     let frontend_path = PathBuf::from(&config.frontend_dir);
     let index_path = frontend_path.join("index.html");
 
+    // Log detailed frontend configuration
     tracing::info!("Serving frontend from: {}", frontend_path.display());
+    tracing::info!("Frontend path exists: {}", frontend_path.exists());
+    tracing::info!("Index.html exists: {}", index_path.exists());
+
+    if !frontend_path.exists() {
+        tracing::error!("❌ Frontend directory does not exist: {}", frontend_path.display());
+        tracing::error!("   Current working directory: {:?}", std::env::current_dir());
+        tracing::error!("   Executable path: {:?}", std::env::current_exe());
+    }
+
+    if !index_path.exists() {
+        tracing::error!("❌ index.html not found at: {}", index_path.display());
+    }
 
     let metrics_collector_clone = metrics_collector.clone();
 
