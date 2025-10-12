@@ -1,9 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
-REM LogLens Installation Script for Windows
-REM Compiles and installs LogLens to %USERPROFILE%\.loglens\bin with unified data directory
+REM Synapse Installation Script for Windows
+REM Compiles and installs Synapse to %USERPROFILE%\.synapse\bin with unified data directory
 
-echo 🚀 LogLens Installation Script for Windows
+echo 🚀 Synapse Installation Script for Windows
 echo ==============================
 
 REM Prevent window from closing on errors
@@ -18,14 +18,14 @@ if not defined IN_SUBPROCESS (
 
 REM Check if we're in the correct directory
 if not exist "Cargo.toml" (
-    echo ❌ Error: This script must be run from the LogLens project directory
+    echo ❌ Error: This script must be run from the Synapse project directory
     echo    Make sure you're in the directory containing the workspace Cargo.toml
     exit /b 1
 )
 
-findstr /C:"members = [\"loglens-core\"" Cargo.toml >nul
+findstr /C:"members = [\"synapse-core\"" Cargo.toml >nul
 if %errorlevel% neq 0 (
-    echo ❌ Error: This script must be run from the LogLens project directory
+    echo ❌ Error: This script must be run from the Synapse project directory
     echo    Make sure you're in the directory containing the workspace Cargo.toml
     exit /b 1
 )
@@ -75,25 +75,25 @@ if %errorlevel% neq 0 (
     echo ✅ Found Cargo: %CARGO_VERSION%
 )
 
-REM Create LogLens data directory
-echo 📁 Creating LogLens data directory...
-if not exist "%USERPROFILE%\.loglens" mkdir "%USERPROFILE%\.loglens"
-if not exist "%USERPROFILE%\.loglens\data" mkdir "%USERPROFILE%\.loglens\data"
-if not exist "%USERPROFILE%\.loglens\logs" mkdir "%USERPROFILE%\.loglens\logs"
-if not exist "%USERPROFILE%\.loglens\config" mkdir "%USERPROFILE%\.loglens\config"
+REM Create Synapse data directory
+echo 📁 Creating Synapse data directory...
+if not exist "%USERPROFILE%\.synapse" mkdir "%USERPROFILE%\.synapse"
+if not exist "%USERPROFILE%\.synapse\data" mkdir "%USERPROFILE%\.synapse\data"
+if not exist "%USERPROFILE%\.synapse\logs" mkdir "%USERPROFILE%\.synapse\logs"
+if not exist "%USERPROFILE%\.synapse\config" mkdir "%USERPROFILE%\.synapse\config"
 
 REM Create bin directory
-echo 📁 Creating LogLens bin directory...
-if not exist "%USERPROFILE%\.loglens\bin" mkdir "%USERPROFILE%\.loglens\bin"
+echo 📁 Creating Synapse bin directory...
+if not exist "%USERPROFILE%\.synapse\bin" mkdir "%USERPROFILE%\.synapse\bin"
 
-REM Kill any running loglens processes
-echo 🔄 Stopping any running LogLens processes...
-taskkill /f /im loglens.exe >nul 2>&1
+REM Kill any running synapse processes
+echo 🔄 Stopping any running Synapse processes...
+taskkill /f /im synapse.exe >nul 2>&1
 timeout /t 1 /nobreak >nul
 
 REM Build release version
-echo 🔨 Building LogLens (release mode)...
-cargo build --release --package loglens-cli
+echo 🔨 Building Synapse (release mode)...
+cargo build --release --package synapse-cli
 if %errorlevel% neq 0 (
     echo ❌ Error: Build failed
     exit /b 1
@@ -156,9 +156,9 @@ if !errorlevel! neq 0 (
 echo.
 
 echo 📁 Changing to frontend directory...
-cd loglens-web\frontend-react
+cd synapse-web\frontend-react
 if %errorlevel% neq 0 (
-    echo ❌ Error: Could not change to loglens-web\frontend-react directory
+    echo ❌ Error: Could not change to synapse-web\frontend-react directory
     pause
     exit /b 1
 )
@@ -222,14 +222,14 @@ echo 📦 Preparing frontend files for installation...
 if not exist "target\release\frontend" mkdir "target\release\frontend"
 
 echo 📋 Checking if dist directory exists...
-if not exist "loglens-web\frontend-react\dist" (
-    echo ❌ Error: dist directory not found at loglens-web\frontend-react\dist
+if not exist "synapse-web\frontend-react\dist" (
+    echo ❌ Error: dist directory not found at synapse-web\frontend-react\dist
     echo The build may have failed silently
     pause
     exit /b 1
 )
 
-if not exist "loglens-web\frontend-react\dist\index.html" (
+if not exist "synapse-web\frontend-react\dist\index.html" (
     echo ❌ Error: index.html not found in dist directory
     echo Build completed but output is invalid
     pause
@@ -240,7 +240,7 @@ echo ✅ Frontend build output verified
 echo.
 
 echo 📂 Copying frontend files to target\release\frontend...
-xcopy /E /I /Y "loglens-web\frontend-react\dist\*" "target\release\frontend\"
+xcopy /E /I /Y "synapse-web\frontend-react\dist\*" "target\release\frontend\"
 set XCOPY_ERROR=%errorlevel%
 if %XCOPY_ERROR% neq 0 (
     echo ❌ Error: xcopy failed with exit code %XCOPY_ERROR%
@@ -258,18 +258,18 @@ echo.
 
 :skip_frontend_build
 
-if not exist "target\release\loglens.exe" (
+if not exist "target\release\synapse.exe" (
     echo ❌ Error: Build failed - executable not found
     exit /b 1
 )
 
 REM Get file size
-for %%A in ("target\release\loglens.exe") do set SIZE=%%~zA
+for %%A in ("target\release\synapse.exe") do set SIZE=%%~zA
 echo ✅ Build successful! Executable size: %SIZE% bytes
 
 REM Install to bin directory
-echo 📦 Installing to %USERPROFILE%\.loglens\bin\loglens.exe...
-copy "target\release\loglens.exe" "%USERPROFILE%\.loglens\bin\"
+echo 📦 Installing to %USERPROFILE%\.synapse\bin\synapse.exe...
+copy "target\release\synapse.exe" "%USERPROFILE%\.synapse\bin\"
 if %errorlevel% neq 0 (
     echo ❌ Error: Failed to copy executable
     exit /b 1
@@ -278,19 +278,19 @@ if %errorlevel% neq 0 (
 REM Install frontend files
 echo 🎨 Installing frontend files...
 if exist "target\release\frontend\index.html" (
-    if not exist "%USERPROFILE%\.loglens\bin\frontend" mkdir "%USERPROFILE%\.loglens\bin\frontend"
+    if not exist "%USERPROFILE%\.synapse\bin\frontend" mkdir "%USERPROFILE%\.synapse\bin\frontend"
 
     REM Copy all frontend files recursively with proper structure
-    xcopy /E /I /Y /Q "target\release\frontend" "%USERPROFILE%\.loglens\bin\frontend"
+    xcopy /E /I /Y /Q "target\release\frontend" "%USERPROFILE%\.synapse\bin\frontend"
 
     REM Verify installation
-    if exist "%USERPROFILE%\.loglens\bin\frontend\index.html" (
+    if exist "%USERPROFILE%\.synapse\bin\frontend\index.html" (
         echo ✅ Frontend files installed successfully
-        echo 📁 Frontend location: %USERPROFILE%\.loglens\bin\frontend
-        dir /B "%USERPROFILE%\.loglens\bin\frontend" | findstr /R ".*" > nul
+        echo 📁 Frontend location: %USERPROFILE%\.synapse\bin\frontend
+        dir /B "%USERPROFILE%\.synapse\bin\frontend" | findstr /R ".*" > nul
         if %errorlevel% equ 0 (
             echo 📄 Frontend files count:
-            dir /B "%USERPROFILE%\.loglens\bin\frontend" | find /C /V ""
+            dir /B "%USERPROFILE%\.synapse\bin\frontend" | find /C /V ""
         )
     ) else (
         echo ❌ Error: Frontend installation failed - index.html not copied
@@ -313,44 +313,44 @@ echo ⚙️ Setting up environment configuration...
 REM Escape backslashes for TOML configuration
 set ESCAPED_USERPROFILE=%USERPROFILE:\=\\%
 
-echo # LogLens Configuration > "%USERPROFILE%\.loglens\config\config.toml"
-echo # Generated by install.bat >> "%USERPROFILE%\.loglens\config\config.toml"
-echo. >> "%USERPROFILE%\.loglens\config\config.toml"
-echo data_dir = "%ESCAPED_USERPROFILE%\\.loglens\\data" >> "%USERPROFILE%\.loglens\config\config.toml"
-echo log_level = "info" >> "%USERPROFILE%\.loglens\config\config.toml"
-echo. >> "%USERPROFILE%\.loglens\config\config.toml"
-echo [ai] >> "%USERPROFILE%\.loglens\config\config.toml"
-echo default_provider = "openrouter" >> "%USERPROFILE%\.loglens\config\config.toml"
-echo. >> "%USERPROFILE%\.loglens\config\config.toml"
-echo [database] >> "%USERPROFILE%\.loglens\config\config.toml"
-echo path = "%ESCAPED_USERPROFILE%\\.loglens\\data\\loglens.db" >> "%USERPROFILE%\.loglens\config\config.toml"
-echo. >> "%USERPROFILE%\.loglens\config\config.toml"
-echo [dashboard] >> "%USERPROFILE%\.loglens\config\config.toml"
-echo port = 3000 >> "%USERPROFILE%\.loglens\config\config.toml"
-echo host = "127.0.0.1" >> "%USERPROFILE%\.loglens\config\config.toml"
-echo. >> "%USERPROFILE%\.loglens\config\config.toml"
-echo [mcp_server] >> "%USERPROFILE%\.loglens\config\config.toml"
-echo port = 3001 >> "%USERPROFILE%\.loglens\config\config.toml"
-echo host = "127.0.0.1" >> "%USERPROFILE%\.loglens\config\config.toml"
+echo # Synapse Configuration > "%USERPROFILE%\.synapse\config\config.toml"
+echo # Generated by install.bat >> "%USERPROFILE%\.synapse\config\config.toml"
+echo. >> "%USERPROFILE%\.synapse\config\config.toml"
+echo data_dir = "%ESCAPED_USERPROFILE%\\.synapse\\data" >> "%USERPROFILE%\.synapse\config\config.toml"
+echo log_level = "info" >> "%USERPROFILE%\.synapse\config\config.toml"
+echo. >> "%USERPROFILE%\.synapse\config\config.toml"
+echo [ai] >> "%USERPROFILE%\.synapse\config\config.toml"
+echo default_provider = "openrouter" >> "%USERPROFILE%\.synapse\config\config.toml"
+echo. >> "%USERPROFILE%\.synapse\config\config.toml"
+echo [database] >> "%USERPROFILE%\.synapse\config\config.toml"
+echo path = "%ESCAPED_USERPROFILE%\\.synapse\\data\\synapse.db" >> "%USERPROFILE%\.synapse\config\config.toml"
+echo. >> "%USERPROFILE%\.synapse\config\config.toml"
+echo [dashboard] >> "%USERPROFILE%\.synapse\config\config.toml"
+echo port = 3000 >> "%USERPROFILE%\.synapse\config\config.toml"
+echo host = "127.0.0.1" >> "%USERPROFILE%\.synapse\config\config.toml"
+echo. >> "%USERPROFILE%\.synapse\config\config.toml"
+echo [mcp_server] >> "%USERPROFILE%\.synapse\config\config.toml"
+echo port = 3001 >> "%USERPROFILE%\.synapse\config\config.toml"
+echo host = "127.0.0.1" >> "%USERPROFILE%\.synapse\config\config.toml"
 
 REM Create Windows service script (optional)
 echo 🔧 Creating Windows service script (optional)...
-echo @echo off > "%USERPROFILE%\.loglens\config\start-loglens-mcp.bat"
-echo REM Start LogLens MCP Server as a background process >> "%USERPROFILE%\.loglens\config\start-loglens-mcp.bat"
-echo start /B "" "%USERPROFILE%\.loglens\bin\loglens.exe" --mcp-server >> "%USERPROFILE%\.loglens\config\start-loglens-mcp.bat"
-echo echo LogLens MCP Server started in background >> "%USERPROFILE%\.loglens\config\start-loglens-mcp.bat"
-echo echo To stop it, run: taskkill /f /im loglens.exe >> "%USERPROFILE%\.loglens\config\start-loglens-mcp.bat"
+echo @echo off > "%USERPROFILE%\.synapse\config\start-synapse-mcp.bat"
+echo REM Start Synapse MCP Server as a background process >> "%USERPROFILE%\.synapse\config\start-synapse-mcp.bat"
+echo start /B "" "%USERPROFILE%\.synapse\bin\synapse.exe" --mcp-server >> "%USERPROFILE%\.synapse\config\start-synapse-mcp.bat"
+echo echo Synapse MCP Server started in background >> "%USERPROFILE%\.synapse\config\start-synapse-mcp.bat"
+echo echo To stop it, run: taskkill /f /im synapse.exe >> "%USERPROFILE%\.synapse\config\start-synapse-mcp.bat"
 
 echo 💡 To start MCP server as background service, run:
-echo    %USERPROFILE%\.loglens\config\start-loglens-mcp.bat
-echo    To stop it: taskkill /f /im loglens.exe
+echo    %USERPROFILE%\.synapse\config\start-synapse-mcp.bat
+echo    To stop it: taskkill /f /im synapse.exe
 
-REM Check if LogLens bin directory is in PATH
-echo %PATH% | findstr /C:"%USERPROFILE%\.loglens\bin" >nul
+REM Check if Synapse bin directory is in PATH
+echo %PATH% | findstr /C:"%USERPROFILE%\.synapse\bin" >nul
 if %errorlevel% neq 0 (
-    echo ⚠️  Warning: %USERPROFILE%\.loglens\bin is not in your PATH
+    echo ⚠️  Warning: %USERPROFILE%\.synapse\bin is not in your PATH
     echo    Add it using:
-    echo    set PATH="%%USERPROFILE%%\.loglens\bin;%%PATH%%"
+    echo    set PATH="%%USERPROFILE%%\.synapse\bin;%%PATH%%"
     echo    Or add it permanently through System Properties ^> Environment Variables
     echo.
 )
@@ -367,25 +367,25 @@ if %errorlevel% neq 0 (
 
 REM Test installation
 echo 🧪 Testing installation...
-"%USERPROFILE%\.loglens\bin\loglens.exe" --version >nul 2>&1
+"%USERPROFILE%\.synapse\bin\synapse.exe" --version >nul 2>&1
 if %errorlevel% equ 0 (
-    echo ✅ LogLens installed successfully!
-    echo 📍 Location: %USERPROFILE%\.loglens\bin\loglens.exe
+    echo ✅ Synapse installed successfully!
+    echo 📍 Location: %USERPROFILE%\.synapse\bin\synapse.exe
     echo.
     echo Usage examples:
-    echo   loglens --help                    # Show help
-    echo   loglens --file C:\logs\app.log   # Analyze log file
-    echo   loglens --dashboard               # Start web dashboard
-    echo   loglens --mcp-server              # Start MCP server (stdio mode)
-    echo   loglens --mcp-server --mcp-transport http  # Start MCP server (HTTP mode)
-    echo   loglens --mcp-server --mcp-port 8080       # Start MCP server on custom port
-    echo   loglens init                      # Initialize project
+    echo   synapse --help                    # Show help
+    echo   synapse --file C:\logs\app.log   # Analyze log file
+    echo   synapse --dashboard               # Start web dashboard
+    echo   synapse --mcp-server              # Start MCP server (stdio mode)
+    echo   synapse --mcp-server --mcp-transport http  # Start MCP server (HTTP mode)
+    echo   synapse --mcp-server --mcp-port 8080       # Start MCP server on custom port
+    echo   synapse init                      # Initialize project
     echo.
-    echo Data directory: %USERPROFILE%\.loglens\data
-    echo Configuration: %USERPROFILE%\.loglens\config\config.toml
+    echo Data directory: %USERPROFILE%\.synapse\data
+    echo Configuration: %USERPROFILE%\.synapse\config\config.toml
     echo.
     echo MCP Server tools available:
-    echo   - list_projects: List available LogLens projects
+    echo   - list_projects: List available Synapse projects
     echo   - get_project: Get detailed project information
     echo   - list_analyses: List analyses for a project
     echo   - get_analysis: Get complete analysis results
@@ -393,17 +393,17 @@ if %errorlevel% equ 0 (
     echo   - analyze_file: Trigger new analysis on existing file
     echo.
     echo Docker usage:
-    echo   docker run -p 8080:8080 -v %USERPROFILE%\.loglens\data:/app/data loglens --dashboard
-    echo   docker run -p 3001:3001 -v %USERPROFILE%\.loglens\data:/app/data loglens --mcp-server
+    echo   docker run -p 8080:8080 -v %USERPROFILE%\.synapse\data:/app/data synapse --dashboard
+    echo   docker run -p 3001:3001 -v %USERPROFILE%\.synapse\data:/app/data synapse --mcp-server
 ) else (
-    echo ❌ Installation failed - loglens.exe not working
+    echo ❌ Installation failed - synapse.exe not working
     exit /b 1
 )
 
 echo 🎉 Installation complete!
 echo.
-echo To use LogLens from anywhere, add %USERPROFILE%\.loglens\bin to your PATH
-echo or run it directly from: %USERPROFILE%\.loglens\bin\loglens.exe
+echo To use Synapse from anywhere, add %USERPROFILE%\.synapse\bin to your PATH
+echo or run it directly from: %USERPROFILE%\.synapse\bin\synapse.exe
 echo.
 echo Press any key to close this window...
 pause >nul

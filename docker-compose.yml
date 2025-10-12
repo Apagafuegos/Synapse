@@ -1,22 +1,22 @@
 services:
   # Web Dashboard Service
-  loglens-dashboard:
+  synapse-dashboard:
     build:
       context: .
       dockerfile: Dockerfile
-    image: loglens:latest
-    container_name: loglens-dashboard
+    image: synapse:latest
+    container_name: synapse-dashboard
     ports:
       - "3000:3000"
     volumes:
       # Persist database and project data
-      - loglens-data:/home/user/.loglens/data
+      - synapse-data:/home/user/.synapse/data
       # Persist uploaded log files
-      - loglens-uploads:/app/uploads
+      - synapse-uploads:/app/uploads
     environment:
       # Database Configuration
-      - DATABASE_URL=sqlite:/home/user/.loglens/data/loglens.db
-      - LOGLENS_DATA_DIR=/home/user/.loglens/data
+      - DATABASE_URL=sqlite:/home/user/.synapse/data/synapse.db
+      - LOGLENS_DATA_DIR=/home/user/.synapse/data
 
       # Server Configuration
       - HOST=0.0.0.0
@@ -40,7 +40,7 @@ services:
       - LOGLENS_UPLOAD_DIR=/app/uploads
 
     restart: unless-stopped
-    command: ["./loglens-web"]
+    command: ["./synapse-web"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
@@ -49,22 +49,22 @@ services:
       start_period: 40s
 
   # MCP Server Service (HTTP + stdio)
-  loglens-mcp:
+  synapse-mcp:
     build:
       context: .
       dockerfile: Dockerfile
-    image: loglens:latest
-    container_name: loglens-mcp
+    image: synapse:latest
+    container_name: synapse-mcp
     ports:
       - "3001:3001"
     volumes:
       # Share the same data directory with dashboard
-      - loglens-data:/home/user/.loglens/data
-      - loglens-uploads:/app/uploads
+      - synapse-data:/home/user/.synapse/data
+      - synapse-uploads:/app/uploads
     environment:
       # Database Configuration (shared with dashboard)
-      - DATABASE_URL=sqlite:/home/user/.loglens/data/loglens.db
-      - LOGLENS_DATA_DIR=/home/user/.loglens/data
+      - DATABASE_URL=sqlite:/home/user/.synapse/data/synapse.db
+      - LOGLENS_DATA_DIR=/home/user/.synapse/data
 
       # MCP Server Configuration
       - PORT=3001
@@ -74,7 +74,7 @@ services:
       - RUST_LOG=info
 
     restart: unless-stopped
-    command: ["./loglens-web"]
+    command: ["./synapse-web"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
@@ -83,22 +83,22 @@ services:
       start_period: 40s
 
   # CLI Helper Service (optional, for ad-hoc commands)
-  loglens-cli:
+  synapse-cli:
     build:
       context: .
       dockerfile: Dockerfile
-    image: loglens:latest
-    container_name: loglens-cli
+    image: synapse:latest
+    container_name: synapse-cli
     volumes:
       # Share the same data directory
-      - loglens-data:/home/user/.loglens/data
-      - loglens-uploads:/app/uploads
+      - synapse-data:/home/user/.synapse/data
+      - synapse-uploads:/app/uploads
       # Mount current working directory for log file access
       - ./logs:/workspace/logs:ro
     environment:
       # Database Configuration (shared)
-      - DATABASE_URL=sqlite:/home/user/.loglens/data/loglens.db
-      - LOGLENS_DATA_DIR=/home/user/.loglens/data
+      - DATABASE_URL=sqlite:/home/user/.synapse/data/synapse.db
+      - LOGLENS_DATA_DIR=/home/user/.synapse/data
 
       # AI Provider API Keys (optional)
       # - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
@@ -116,13 +116,13 @@ services:
 
 # Named volumes for data persistence
 volumes:
-  loglens-data:
+  synapse-data:
     driver: local
-  loglens-uploads:
+  synapse-uploads:
     driver: local
 
 # Network configuration
 networks:
   default:
-    name: loglens-network
+    name: synapse-network
     driver: bridge

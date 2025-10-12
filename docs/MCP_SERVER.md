@@ -1,12 +1,12 @@
-# LogLens MCP Server
+# Synapse MCP Server
 
-LogLens provides a Model Context Protocol (MCP) server that enables AI assistants like Claude Desktop to analyze logs directly.
+Synapse provides a Model Context Protocol (MCP) server that enables AI assistants like Claude Desktop to analyze logs directly.
 
 ## Building the MCP Server
 
 ```bash
 # From the repository root
-cargo build --release -p loglens-core --features mcp-server,project-management --bin mcp_server
+cargo build --release -p synapse-core --features mcp-server,project-management --bin mcp_server
 
 # Binary location
 ./target/release/mcp_server
@@ -35,8 +35,8 @@ Add to your Claude Desktop configuration file:
 ```json
 {
   "mcpServers": {
-    "loglens": {
-      "command": "/absolute/path/to/loglens/target/release/mcp_server",
+    "synapse": {
+      "command": "/absolute/path/to/synapse/target/release/mcp_server",
       "env": {
         "RUST_LOG": "info",
         "OPENROUTER_API_KEY": "your-api-key-here"
@@ -102,10 +102,10 @@ Filter log lines by minimum log level.
 ```
 
 ### 4. `add_log_file` (Project Management)
-Add a log file to a LogLens project and trigger analysis.
+Add a log file to a Synapse project and trigger analysis.
 
 **Parameters**:
-- `project_path` (required): Path to project root (must contain `.loglens/`)
+- `project_path` (required): Path to project root (must contain `.synapse/`)
 - `log_file_path` (required): Absolute or relative path to log file
 - `level` (optional): Minimum log level ("ERROR", "WARN", "INFO", "DEBUG")
 - `provider` (optional): AI provider ("openrouter", "openai", "claude", "gemini")
@@ -123,7 +123,7 @@ Add a log file to a LogLens project and trigger analysis.
 }
 ```
 
-**Prerequisites**: Run `loglens init` in the project directory first.
+**Prerequisites**: Run `synapse init` in the project directory first.
 
 ### 5. `get_analysis`
 Retrieve analysis results by ID.
@@ -195,10 +195,10 @@ Claude will automatically invoke the appropriate MCP tools to process your reque
 
 ## Workflow: Project-Based Analysis
 
-1. **Initialize a LogLens project**:
+1. **Initialize a Synapse project**:
    ```bash
    cd /path/to/your/project
-   loglens init
+   synapse init
    ```
 
 2. **Configure Claude Desktop** with the MCP server (see above)
@@ -237,18 +237,18 @@ Claude will automatically invoke the appropriate MCP tools to process your reque
 - Review analysis results for specific error messages
 
 ### Project Not Found
-- Verify `.loglens/` directory exists in project root
-- Run `loglens init` if not already initialized
+- Verify `.synapse/` directory exists in project root
+- Run `synapse init` if not already initialized
 - Check that `project_path` is absolute, not relative
 
 ## Advanced Configuration
 
 ### Custom Models
 
-Configure specific AI models via the LogLens project config:
+Configure specific AI models via the Synapse project config:
 
 ```bash
-# Edit .loglens/config.toml in your project
+# Edit .synapse/config.toml in your project
 [ai]
 provider = "openrouter"
 model = "anthropic/claude-3-opus"
@@ -256,11 +256,11 @@ model = "anthropic/claude-3-opus"
 
 ### Database Location
 
-LogLens stores analysis results in `.loglens/index.db` within each project.
+Synapse stores analysis results in `.synapse/index.db` within each project.
 
 ### Log Caching
 
-Analyzed logs are cached in `.loglens/logs/` to avoid re-reading large files.
+Analyzed logs are cached in `.synapse/logs/` to avoid re-reading large files.
 
 ## Development
 
@@ -293,5 +293,5 @@ Logs are written to stderr, so they won't interfere with the MCP protocol on std
 
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/)
 - [Claude Desktop Documentation](https://claude.ai/desktop)
-- [LogLens README](../README.md)
+- [Synapse README](../README.md)
 - [Project Management Guide](../README.md#-usage)

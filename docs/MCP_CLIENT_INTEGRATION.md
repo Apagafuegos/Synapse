@@ -1,6 +1,6 @@
-# LogLens MCP Client Integration Guide
+# Synapse MCP Client Integration Guide
 
-**Complete guide for integrating LogLens MCP server with Claude Desktop and other MCP clients**
+**Complete guide for integrating Synapse MCP server with Claude Desktop and other MCP clients**
 
 ## Table of Contents
 - [Overview](#overview)
@@ -17,7 +17,7 @@
 
 ### What is MCP?
 
-Model Context Protocol (MCP) is a standardized protocol for connecting AI assistants to external tools and data sources. LogLens implements MCP to expose log analysis capabilities to LLMs like Claude.
+Model Context Protocol (MCP) is a standardized protocol for connecting AI assistants to external tools and data sources. Synapse implements MCP to expose log analysis capabilities to LLMs like Claude.
 
 ### Architecture
 
@@ -30,14 +30,14 @@ Model Context Protocol (MCP) is a standardized protocol for connecting AI assist
          │ over stdio
          ▼
 ┌─────────────────┐
-│ LogLens MCP     │
+│ Synapse MCP     │
 │ Server          │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
 │ Your Project    │
-│ .loglens/       │
+│ .synapse/       │
 │ ├─ index.db     │
 │ └─ analyses/    │
 └─────────────────┘
@@ -57,20 +57,20 @@ Model Context Protocol (MCP) is a standardized protocol for connecting AI assist
 ### Prerequisites
 
 - **Claude Desktop**: Latest version (download from claude.ai/desktop)
-- **LogLens**: Installed and in PATH
+- **Synapse**: Installed and in PATH
 - **Operating System**: macOS, Windows, or Linux
 
-### Step 1: Install LogLens
+### Step 1: Install Synapse
 
 ```bash
 # Build with MCP features
-cd /path/to/loglens
+cd /path/to/synapse
 cargo build --release --features "project-management,mcp-server"
 cargo install --path . --features "project-management,mcp-server"
 
 # Verify installation
-loglens --version
-which loglens  # Note this path for configuration
+synapse --version
+which synapse  # Note this path for configuration
 ```
 
 ### Step 2: Configure Claude Desktop
@@ -90,8 +90,8 @@ Claude Desktop uses a configuration file to define MCP servers.
 ```json
 {
   "mcpServers": {
-    "loglens": {
-      "command": "/full/path/to/loglens",
+    "synapse": {
+      "command": "/full/path/to/synapse",
       "args": ["--mcp-server"],
       "env": {
         "OPENROUTER_API_KEY": "your-openrouter-api-key-here",
@@ -103,7 +103,7 @@ Claude Desktop uses a configuration file to define MCP servers.
 ```
 
 **Important:**
-- Use **absolute path** to loglens binary (from `which loglens`)
+- Use **absolute path** to synapse binary (from `which synapse`)
 - Set API keys as environment variables
 - Optional: Add `RUST_LOG` for debugging
 
@@ -121,7 +121,7 @@ Can you list the available MCP tools?
 
 **Expected response:**
 ```
-I can see the following LogLens tools:
+I can see the following Synapse tools:
 - analyze_logs
 - parse_logs
 - filter_logs
@@ -135,7 +135,7 @@ I can see the following LogLens tools:
 Initialize a project and test analysis:
 
 ```
-1. Initialize LogLens in /path/to/my-project
+1. Initialize Synapse in /path/to/my-project
 2. Analyze the log file at /path/to/my-project/logs/app.log
 3. Show me the results
 ```
@@ -152,7 +152,7 @@ Initialize a project and test analysis:
 
 ### Protocol Specification
 
-LogLens implements **MCP Protocol Version 2024-11-05**.
+Synapse implements **MCP Protocol Version 2024-11-05**.
 
 **Communication:**
 - **Transport:** stdio (standard input/output)
@@ -189,7 +189,7 @@ LogLens implements **MCP Protocol Version 2024-11-05**.
       "tools": {}
     },
     "serverInfo": {
-      "name": "loglens",
+      "name": "synapse",
       "version": "0.1.0"
     }
   }
@@ -285,7 +285,7 @@ LogLens implements **MCP Protocol Version 2024-11-05**.
     "message": "Invalid params: project_path not found",
     "data": {
       "param": "project_path",
-      "reason": ".loglens directory not found"
+      "reason": ".synapse directory not found"
     }
   }
 }
@@ -305,10 +305,10 @@ import json
 import subprocess
 import sys
 
-class LogLensMCPClient:
-    def __init__(self, loglens_path):
+class SynapseMCPClient:
+    def __init__(self, synapse_path):
         self.process = subprocess.Popen(
-            [loglens_path, "--mcp-server"],
+            [synapse_path, "--mcp-server"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -354,7 +354,7 @@ class LogLensMCPClient:
 
 
 # Usage
-client = LogLensMCPClient("/usr/local/bin/loglens")
+client = SynapseMCPClient("/usr/local/bin/synapse")
 
 # Initialize
 init_response = client.initialize()
@@ -381,9 +381,9 @@ client.close()
 const { spawn } = require('child_process');
 const readline = require('readline');
 
-class LogLensMCPClient {
-  constructor(loglensPath) {
-    this.process = spawn(loglensPath, ['--mcp-server']);
+class SynapseMCPClient {
+  constructor(synapsePath) {
+    this.process = spawn(synapsePath, ['--mcp-server']);
     this.id = 0;
     this.pendingRequests = new Map();
 
@@ -450,7 +450,7 @@ class LogLensMCPClient {
 
 // Usage
 (async () => {
-  const client = new LogLensMCPClient('/usr/local/bin/loglens');
+  const client = new SynapseMCPClient('/usr/local/bin/synapse');
 
   // Initialize
   await client.initialize();
@@ -478,7 +478,7 @@ class LogLensMCPClient {
 
 ### API Keys Configuration
 
-LogLens supports multiple AI providers. Configure API keys as environment variables.
+Synapse supports multiple AI providers. Configure API keys as environment variables.
 
 **Method 1: Environment Variables**
 
@@ -498,7 +498,7 @@ export GEMINI_API_KEY="..."
 
 **Method 2: Configuration File**
 
-Edit `~/.config/loglens/config.toml`:
+Edit `~/.config/synapse/config.toml`:
 
 ```toml
 [api_keys]
@@ -563,17 +563,17 @@ Pass API key in tool call:
 
 ```bash
 # 1. Start MCP server manually
-loglens --mcp-server
+synapse --mcp-server
 
 # 2. In another terminal, send test request
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"clientInfo":{"name":"test","version":"1.0.0"}}}' | loglens --mcp-server
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"clientInfo":{"name":"test","version":"1.0.0"}}}' | synapse --mcp-server
 ```
 
 ### Comprehensive Test
 
 ```bash
 # Run integration tests
-cd /path/to/loglens
+cd /path/to/synapse
 cargo test --features "project-management,mcp-server" --test mcp_integration
 
 # Expected output:
@@ -592,13 +592,13 @@ cargo test --features "project-management,mcp-server" --test mcp_integration
 
 ```bash
 # 1. Initialize test project
-mkdir /tmp/loglens-test
-cd /tmp/loglens-test
+mkdir /tmp/synapse-test
+cd /tmp/synapse-test
 echo '[ERROR] Test error' > test.log
-loglens init
+synapse init
 
 # 2. Start server (leave running)
-loglens --mcp-server &
+synapse --mcp-server &
 SERVER_PID=$!
 
 # 3. Test via Claude Desktop or custom client
@@ -608,7 +608,7 @@ SERVER_PID=$!
 
 # 4. Cleanup
 kill $SERVER_PID
-rm -rf /tmp/loglens-test
+rm -rf /tmp/synapse-test
 ```
 
 ### Validation Checklist
@@ -630,7 +630,7 @@ rm -rf /tmp/loglens-test
 
 **Symptoms:**
 ```bash
-$ loglens --mcp-server
+$ synapse --mcp-server
 Error: failed to start MCP server
 ```
 
@@ -644,20 +644,20 @@ cargo build --release --features "project-management,mcp-server"
 
 **Port already in use (shouldn't happen with stdio):**
 ```bash
-# LogLens uses stdio, not network ports
+# Synapse uses stdio, not network ports
 # This usually indicates another issue
 ```
 
 **Permissions:**
 ```bash
-# Ensure loglens is executable
-chmod +x /path/to/loglens
+# Ensure synapse is executable
+chmod +x /path/to/synapse
 ```
 
-### Issue 2: Claude Desktop Can't Find LogLens
+### Issue 2: Claude Desktop Can't Find Synapse
 
 **Symptoms:**
-Claude Desktop says "LogLens not available" or "No MCP servers connected"
+Claude Desktop says "Synapse not available" or "No MCP servers connected"
 
 **Solutions:**
 
@@ -674,8 +674,8 @@ cat ~/.config/Claude/claude_desktop_config.json
 ```json
 {
   "mcpServers": {
-    "loglens": {
-      "command": "/usr/local/bin/loglens",  // Must be absolute!
+    "synapse": {
+      "command": "/usr/local/bin/synapse",  // Must be absolute!
       "args": ["--mcp-server"]
     }
   }
@@ -684,7 +684,7 @@ cat ~/.config/Claude/claude_desktop_config.json
 
 **Check binary exists:**
 ```bash
-which loglens
+which synapse
 # Use this exact path in config
 ```
 
@@ -705,8 +705,8 @@ Error: API key not found for provider 'openrouter'
 ```json
 {
   "mcpServers": {
-    "loglens": {
-      "command": "/usr/local/bin/loglens",
+    "synapse": {
+      "command": "/usr/local/bin/synapse",
       "args": ["--mcp-server"],
       "env": {
         "OPENROUTER_API_KEY": "your-key-here"
@@ -768,30 +768,30 @@ while (Date.now() - startTime < maxWait) {
 **Check server logs:**
 ```bash
 # macOS
-tail -f ~/Library/Logs/Claude/mcp-server-loglens.log
+tail -f ~/Library/Logs/Claude/mcp-server-synapse.log
 
 # Linux
-tail -f ~/.local/share/Claude/logs/mcp-server-loglens.log
+tail -f ~/.local/share/Claude/logs/mcp-server-synapse.log
 ```
 
 ### Issue 5: Permission Denied
 
 **Symptoms:**
 ```
-Error: Permission denied: /path/to/project/.loglens
+Error: Permission denied: /path/to/project/.synapse
 ```
 
 **Solutions:**
 
 **Check directory permissions:**
 ```bash
-ls -la /path/to/project/.loglens/
+ls -la /path/to/project/.synapse/
 # Should show read/write for user
 ```
 
 **Fix permissions:**
 ```bash
-chmod -R u+rw /path/to/project/.loglens/
+chmod -R u+rw /path/to/project/.synapse/
 ```
 
 **Run as correct user:**
@@ -820,17 +820,17 @@ chmod -R u+rw /path/to/project/.loglens/
 
 ### 2. File System Access
 
-LogLens MCP server has access to:
-- ✅ Projects initialized with `loglens init`
+Synapse MCP server has access to:
+- ✅ Projects initialized with `synapse init`
 - ✅ Log files within those projects
-- ✅ `.loglens/` directories
+- ✅ `.synapse/` directories
 
-LogLens **cannot** access:
+Synapse **cannot** access:
 - ❌ Files outside initialized projects
 - ❌ System files
 - ❌ Other users' files
 
-**Recommendation:** Only initialize LogLens in projects you want to analyze.
+**Recommendation:** Only initialize Synapse in projects you want to analyze.
 
 ### 3. Network Security
 
@@ -848,15 +848,15 @@ LogLens **cannot** access:
 
 **SQLite Permissions:**
 ```bash
-# Restrict .loglens directory
-chmod 700 /path/to/project/.loglens/
+# Restrict .synapse directory
+chmod 700 /path/to/project/.synapse/
 
 # Restrict database file
-chmod 600 /path/to/project/.loglens/index.db
+chmod 600 /path/to/project/.synapse/index.db
 ```
 
 **Sensitive Data:**
-- LogLens stores analysis results locally
+- Synapse stores analysis results locally
 - Log file contents may be sent to AI providers
 - Review logs for sensitive data before analysis
 
@@ -865,7 +865,7 @@ chmod 600 /path/to/project/.loglens/index.db
 All analyses are tracked:
 ```sql
 -- View all analyses
-sqlite3 .loglens/index.db "SELECT * FROM analyses;"
+sqlite3 .synapse/index.db "SELECT * FROM analyses;"
 
 -- View by user (if multi-user system)
 -- Track who initiated which analyses
@@ -880,7 +880,7 @@ sqlite3 .loglens/index.db "SELECT * FROM analyses;"
 **Connection Pooling:**
 ```javascript
 // Reuse MCP client connection
-const client = new LogLensMCPClient();
+const client = new SynapseMCPClient();
 await client.initialize();
 
 // Perform multiple operations
@@ -928,7 +928,7 @@ grep ERROR large.log > errors-only.log
 
 - **Documentation:** [MCP_USAGE.md](./MCP_USAGE.md)
 - **Architecture:** [MCP_INTEGRATION_PLAN.md](./MCP_INTEGRATION_PLAN.md)
-- **Issues:** https://github.com/yourusername/loglens/issues
+- **Issues:** https://github.com/yourusername/synapse/issues
 - **MCP Specification:** https://spec.modelcontextprotocol.io/
 
 ---
@@ -940,8 +940,8 @@ grep ERROR large.log > errors-only.log
 ```json
 {
   "mcpServers": {
-    "loglens": {
-      "command": "/usr/local/bin/loglens",
+    "synapse": {
+      "command": "/usr/local/bin/synapse",
       "args": ["--mcp-server"],
       "env": {
         "OPENROUTER_API_KEY": "sk-or-v1-...",
@@ -957,8 +957,8 @@ grep ERROR large.log > errors-only.log
 ```json
 {
   "mcpServers": {
-    "loglens-dev": {
-      "command": "/Users/dev/loglens/target/debug/loglens",
+    "synapse-dev": {
+      "command": "/Users/dev/synapse/target/debug/synapse",
       "args": ["--mcp-server"],
       "env": {
         "OPENROUTER_API_KEY": "sk-or-v1-...",
@@ -974,8 +974,8 @@ grep ERROR large.log > errors-only.log
 ```json
 {
   "mcpServers": {
-    "loglens": {
-      "command": "/usr/local/bin/loglens",
+    "synapse": {
+      "command": "/usr/local/bin/synapse",
       "args": ["--mcp-server"],
       "env": {
         "OPENROUTER_API_KEY": "sk-or-v1-...",

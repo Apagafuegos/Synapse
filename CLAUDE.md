@@ -43,7 +43,7 @@ cargo test -p core --features project-management
 cargo test -p core --features mcp-server
 ```
 
-### Running LogLens
+### Running Synapse
 
 **Web Server (Primary Interface)**:
 ```bash
@@ -91,18 +91,18 @@ npm run build
 
 ### Database Management
 
-**Important**: LogLens uses a **single, unified database** automatically stored in OS-appropriate locations following XDG Base Directory specification:
+**Important**: Synapse uses a **single, unified database** automatically stored in OS-appropriate locations following XDG Base Directory specification:
 
-- **Linux**: `~/.local/share/loglens/loglens.db`
-- **macOS**: `~/Library/Application Support/loglens/loglens.db`
-- **Windows**: `%APPDATA%\loglens\loglens.db`
+- **Linux**: `~/.local/share/synapse/synapse.db`
+- **macOS**: `~/Library/Application Support/synapse/synapse.db`
+- **Windows**: `%APPDATA%\synapse\synapse.db`
 
 The database is automatically created on first launch. No `DATABASE_URL` environment variable is required.
 
 ```bash
 # Database is auto-created in XDG data directory
 # To use a custom location (optional):
-export LOGLENS_DATABASE_PATH=/custom/path/to/loglens.db
+export SYNAPSE_DATABASE_PATH=/custom/path/to/synapse.db
 
 # Run migrations (from web directory)
 cd web
@@ -120,14 +120,14 @@ cargo check
 
 ### Workspace Structure
 
-LogLens is organized as a Cargo workspace with four crates:
+Synapse is organized as a Cargo workspace with four crates:
 
-- **loglens-core**: Core analysis engine (library)
-- **loglens-web**: Web server and API (binary + library)
-- **loglens-cli**: Command-line interface (binary)
-- **loglens-wasm**: WebAssembly module for frontend
+- **synapse-core**: Core analysis engine (library)
+- **synapse-web**: Web server and API (binary + library)
+- **synapse-cli**: Command-line interface (binary)
+- **synapse-wasm**: WebAssembly module for frontend
 
-### Core Components (loglens-core)
+### Core Components (synapse-core)
 
 **Main Library** (`src/lib.rs`):
 - Unified API for log analysis across CLI, web, and MCP integrations
@@ -162,8 +162,8 @@ LogLens is organized as a Cargo workspace with four crates:
 **Configuration System** (`src/config.rs`):
 - TOML-based hierarchical configuration
 - Precedence: CLI args > env vars > config file > defaults
-- Project-level: `.loglens.toml`
-- User-level: `~/.config/loglens/config.toml`
+- Project-level: `.synapse.toml`
+- User-level: `~/.config/synapse/config.toml`
 - API key resolution with multiple fallbacks
 
 **Database Path Resolution** (`src/db_path.rs`):
@@ -171,7 +171,7 @@ LogLens is organized as a Cargo workspace with four crates:
 - Auto-detects project root by searching for workspace `Cargo.toml`
 - Creates `data/` directory automatically
 - Functions: `get_database_path()`, `get_data_dir()`, `ensure_data_dir()`
-- Override via `LOGLENS_DATABASE_PATH` environment variable
+- Override via `SYNAPSE_DATABASE_PATH` environment variable
 
 **Project Management** (`src/project/`) - Feature: `project-management`:
 - `init.rs`: Project initialization with auto-detection
@@ -187,7 +187,7 @@ LogLens is organized as a Cargo workspace with four crates:
 - JSON schema validation for tool parameters
 - Async tool execution with progress tracking
 
-### Web Backend (loglens-web)
+### Web Backend (synapse-web)
 
 **Server Architecture** (`src/main.rs`):
 - Axum web framework with tower middleware
@@ -227,7 +227,7 @@ pub struct AppState {
 - Automatic restart with exponential backoff
 - Real-time statistics and metrics
 
-### Frontend (loglens-web/frontend-react)
+### Frontend (synapse-web/frontend-react)
 
 **Technology Stack**:
 - React 18 with TypeScript
@@ -251,7 +251,7 @@ pub struct AppState {
 - `websocket.ts`: WebSocket connection management
 - Type-safe API calls using TypeScript interfaces
 
-### WASM Module (loglens-wasm)
+### WASM Module (synapse-wasm)
 
 - High-performance client-side log parsing
 - Rust code compiled to WebAssembly
@@ -309,7 +309,7 @@ pub struct AppState {
 
 ### Single Unified Database
 
-LogLens uses **one SQLite database** at `<project-root>/data/loglens.db`:
+Synapse uses **one SQLite database** at `<project-root>/data/synapse.db`:
 - Auto-created on first launch
 - WAL mode for concurrent access
 - Connection pooling for performance
@@ -328,7 +328,7 @@ LogLens uses **one SQLite database** at `<project-root>/data/loglens.db`:
 - Single source of truth
 - No manual `DATABASE_URL` configuration
 - Automatic directory creation
-- Override via `LOGLENS_DATABASE_PATH` if needed
+- Override via `SYNAPSE_DATABASE_PATH` if needed
 
 ## API Key Management
 
@@ -336,7 +336,7 @@ API keys are resolved in the following order of precedence:
 
 1. **Command-line parameter**: `--api-key`
 2. **Environment variables**: `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`
-3. **Configuration file**: `.loglens.toml` or `~/.config/loglens/config.toml`
+3. **Configuration file**: `.synapse.toml` or `~/.config/synapse/config.toml`
 4. **Error if none found**
 
 Web interface stores API keys in settings (encrypted at rest).
@@ -361,7 +361,7 @@ Web interface stores API keys in settings (encrypted at rest).
 
 ## Logging and Observability
 
-LogLens uses structured logging via the `tracing` crate:
+Synapse uses structured logging via the `tracing` crate:
 
 **Log Levels**:
 - **ERROR**: Critical failures (auth failures, DB errors, API failures)
@@ -379,10 +379,10 @@ RUST_LOG=info
 RUST_LOG=debug
 
 # Module-specific logging
-RUST_LOG=loglens_core=debug,loglens_web=info
+RUST_LOG=synapse_core=debug,synapse_web=info
 
 # Component-specific
-RUST_LOG=loglens_web::handlers=trace
+RUST_LOG=synapse_web::handlers=trace
 ```
 
 **Error Context Guidelines**:
@@ -393,7 +393,7 @@ RUST_LOG=loglens_web::handlers=trace
 
 ## MCP Integration
 
-LogLens provides full Model Context Protocol support for AI assistant integration:
+Synapse provides full Model Context Protocol support for AI assistant integration:
 
 **Available Tools**:
 - `analyze_logs`: Direct log content analysis with AI
@@ -407,8 +407,8 @@ LogLens provides full Model Context Protocol support for AI assistant integratio
 ```json
 {
   "mcpServers": {
-    "loglens": {
-      "command": "/absolute/path/to/loglens",
+    "synapse": {
+      "command": "/absolute/path/to/synapse",
       "args": ["--mcp-server", "--mcp-transport", "stdio"]
     }
   }
@@ -416,22 +416,22 @@ LogLens provides full Model Context Protocol support for AI assistant integratio
 ```
 
 **Important Notes**:
-- Use absolute path to `loglens` binary
+- Use absolute path to `synapse` binary
 - Must specify `--mcp-transport stdio` for Claude Desktop
 - Stdio transport requires NO logging output (pure JSON-RPC only)
 - Database automatically stored in OS-appropriate location:
-  - Linux: `~/.local/share/loglens/loglens.db`
-  - macOS: `~/Library/Application Support/loglens/loglens.db`
-  - Windows: `%APPDATA%\loglens\loglens.db`
+  - Linux: `~/.local/share/synapse/synapse.db`
+  - macOS: `~/Library/Application Support/synapse/synapse.db`
+  - Windows: `%APPDATA%\synapse\synapse.db`
 
 **Testing MCP Server**:
 ```bash
 # Test stdio transport (should output ONLY JSON-RPC)
 echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | \
-  loglens --mcp-server --mcp-transport stdio | jq .
+  synapse --mcp-server --mcp-transport stdio | jq .
 
 # Start HTTP transport (alternative, allows logging)
-loglens --mcp-server --mcp-transport http --mcp-port 3001
+synapse --mcp-server --mcp-transport http --mcp-port 3001
 ```
 
 See `MCP_FIXES.md` for detailed implementation notes and troubleshooting.
@@ -454,7 +454,7 @@ cargo build --all-features
 
 ### Adding a New AI Provider
 
-1. Create provider module in `loglens-core/src/ai_provider/`
+1. Create provider module in `synapse-core/src/ai_provider/`
 2. Implement `AIProvider` trait
 3. Add provider to factory in `ai_provider/mod.rs`
 4. Add configuration to `config.rs`
@@ -462,7 +462,7 @@ cargo build --all-features
 
 ### Adding a New Analysis Type
 
-1. Create analyzer module in `loglens-core/src/analyzer/`
+1. Create analyzer module in `synapse-core/src/analyzer/`
 2. Implement analysis logic with confidence scoring
 3. Integrate in `analyzer.rs` orchestrator
 4. Add UI components in frontend for visualization

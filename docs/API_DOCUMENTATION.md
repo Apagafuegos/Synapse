@@ -1,6 +1,6 @@
-# LogLens API Documentation
+# Synapse API Documentation
 
-This document provides comprehensive API documentation for LogLens, including all endpoints for the web server, streaming, knowledge base, MCP integration, and export functionality.
+This document provides comprehensive API documentation for Synapse, including all endpoints for the web server, streaming, knowledge base, MCP integration, and export functionality.
 
 ## Base URL
 ```
@@ -8,7 +8,7 @@ http://localhost:3000
 ```
 
 ## Authentication
-LogLens uses API key-based authentication. Configure API keys through the settings endpoint.
+Synapse uses API key-based authentication. Configure API keys through the settings endpoint.
 
 ## Response Format
 All responses use JSON format with the following structure:
@@ -852,4 +852,4 @@ Response includes pagination metadata:
 
 ---
 
-This API documentation provides comprehensive coverage of all LogLens endpoints and functionality, enabling developers to integrate and interact with the platform effectively.
+This API documentation provides comprehensive coverage of all Synapse endpoints and functionality, enabling developers to integrate and interact with the platform effectively.

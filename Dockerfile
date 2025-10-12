@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for LogLens
+# Multi-stage Dockerfile for Synapse
 # Builds WASM, React frontend, and Rust backend in a single optimized image
 
 # Stage 1: Build WASM module
@@ -13,14 +13,14 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 
 # Copy all workspace members (required for workspace to work)
-COPY loglens-core ./loglens-core
-COPY loglens-wasm ./loglens-wasm
-COPY loglens-web ./loglens-web
-COPY loglens-cli ./loglens-cli
-COPY loglens-mcp ./loglens-mcp
+COPY synapse-core ./synapse-core
+COPY synapse-wasm ./synapse-wasm
+COPY synapse-web ./synapse-web
+COPY synapse-cli ./synapse-cli
+COPY synapse-mcp ./synapse-mcp
 
 # Build WASM package
-WORKDIR /build/loglens-wasm
+WORKDIR /build/synapse-wasm
 RUN wasm-pack build --target web --out-dir pkg --release
 
 # Stage 2: Build React frontend
@@ -29,25 +29,25 @@ FROM node:20-bookworm AS frontend-builder
 WORKDIR /build
 
 # Copy WASM build output to the correct location relative to frontend
-COPY --from=wasm-builder /build/loglens-wasm/pkg ./loglens-wasm/pkg
+COPY --from=wasm-builder /build/synapse-wasm/pkg ./synapse-wasm/pkg
 
 # Copy package files for dependency installation
-COPY loglens-web/frontend-react/package.json loglens-web/frontend-react/package-lock.json ./loglens-web/frontend-react/
-WORKDIR /build/loglens-web/frontend-react
+COPY synapse-web/frontend-react/package.json synapse-web/frontend-react/package-lock.json ./synapse-web/frontend-react/
+WORKDIR /build/synapse-web/frontend-react
 
 # Install dependencies
 RUN npm ci
 
 # Copy config files needed for build
-COPY loglens-web/frontend-react/tsconfig.json ./
-COPY loglens-web/frontend-react/tsconfig.node.json ./
-COPY loglens-web/frontend-react/vite.config.ts ./
-COPY loglens-web/frontend-react/tailwind.config.js ./
-COPY loglens-web/frontend-react/postcss.config.js ./
+COPY synapse-web/frontend-react/tsconfig.json ./
+COPY synapse-web/frontend-react/tsconfig.node.json ./
+COPY synapse-web/frontend-react/vite.config.ts ./
+COPY synapse-web/frontend-react/tailwind.config.js ./
+COPY synapse-web/frontend-react/postcss.config.js ./
 
 # Copy source files and assets
-COPY loglens-web/frontend-react/index.html ./
-COPY loglens-web/frontend-react/src ./src
+COPY synapse-web/frontend-react/index.html ./
+COPY synapse-web/frontend-react/src ./src
 
 # Build frontend (skip WASM rebuild since we already have it)
 RUN npm run build:skip-wasm
@@ -60,11 +60,11 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 
 # Copy all crates
-COPY loglens-core ./loglens-core
-COPY loglens-wasm ./loglens-wasm
-COPY loglens-web ./loglens-web
-COPY loglens-cli ./loglens-cli
-COPY loglens-mcp ./loglens-mcp
+COPY synapse-core ./synapse-core
+COPY synapse-wasm ./synapse-wasm
+COPY synapse-web ./synapse-web
+COPY synapse-cli ./synapse-cli
+COPY synapse-mcp ./synapse-mcp
 
 # Copy sqlx offline data for compile-time query verification
 COPY .sqlx ./.sqlx
@@ -73,7 +73,7 @@ COPY .sqlx ./.sqlx
 ENV SQLX_OFFLINE=true
 
 # Build backend in release mode
-RUN cargo build --release --bin loglens-web
+RUN cargo build --release --bin synapse-web
 
 # Stage 4: Runtime image
 FROM debian:bookworm-slim
@@ -86,20 +86,20 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Copy backend binary
-COPY --from=backend-builder /build/target/release/loglens-web ./loglens-web
+COPY --from=backend-builder /build/target/release/synapse-web ./synapse-web
 
 # Copy frontend build
-COPY --from=frontend-builder /build/loglens-web/frontend-react/dist ./frontend-react/dist
+COPY --from=frontend-builder /build/synapse-web/frontend-react/dist ./frontend-react/dist
 
 # Copy migrations
-COPY loglens-web/migrations ./migrations
+COPY synapse-web/migrations ./migrations
 
 # Create directories for data persistence
 RUN mkdir -p /app/data /app/uploads && \
     chmod 755 /app/data /app/uploads
 
 # Set environment variables
-ENV DATABASE_URL=sqlite:/app/data/loglens.db
+ENV DATABASE_URL=sqlite:/app/data/synapse.db
 ENV PORT=3000
 ENV RUST_LOG=info
 ENV LOGLENS_FRONTEND_DIR=/app/frontend-react/dist
@@ -112,4 +112,4 @@ EXPOSE 3000
 WORKDIR /app
 
 # Run the application
-CMD ["./loglens-web"]
+CMD ["./synapse-web"]

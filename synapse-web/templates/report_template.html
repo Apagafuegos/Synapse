@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synapse Analysis Report - {{analysis_id}}</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #64748b;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --background: #f8fafc;
+            --card-bg: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--background);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .header .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+        }
+
+        .grid {
+            display: grid;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border-color);
+        }
+
+        .card h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-item {
+            text-align: center;
+            padding: 1rem;
+            background: var(--background);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .summary-item .value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            display: block;
+        }
+
+        .summary-item .label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+
+        .info-table th,
+        .info-table td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .info-table th {
+            background: var(--background);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .info-table tr:hover {
+            background: var(--background);
+        }
+
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .metrics-table th,
+        .metrics-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .metrics-table th {
+            background: var(--primary-color);
+            color: white;
+            font-weight: 600;
+        }
+
+        .metric-value {
+            font-weight: 600;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+
+        .bottleneck {
+            background: var(--error-color) !important;
+            color: white;
+        }
+
+        .status-ok {
+            color: var(--success-color);
+            font-weight: 600;
+        }
+
+        .status-warning {
+            color: var(--warning-color);
+            font-weight: 600;
+        }
+
+        .status-error {
+            color: var(--error-color);
+            font-weight: 600;
+        }
+
+        .correlation-item {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .correlation-strength {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: var(--warning-color);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .error-section {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .result-content {
+            background: var(--background);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .footer {
+            margin-top: 3rem;
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-success {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-error {
+            background: #fecaca;
+            color: #991b1b;
+        }
+
+        .badge-info {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            
+            .summary-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            
+            .card {
+                box-shadow: none;
+                border: 1px solid #ccc;
+                break-inside: avoid;
+            }
+            
+            .correlation-item,
+            .error-section {
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>Synapse Analysis Report</h1>
+            <p class="subtitle">Generated on {{generated_at}}</p>
+        </div>
+
+        <!-- Executive Summary -->
+        <div class="card">
+            <h2>Executive Summary</h2>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <span class="value">{{total_errors}}</span>
+                    <span class="label">Total Errors</span>
+                </div>
+                <div class="summary-item">
+                    <span class="value">{{bottlenecks_count}}</span>
+                    <span class="label">Bottlenecks</span>
+                </div>
+                <div class="summary-item">
+                    <span class="value">{{correlations_count}}</span>
+                    <span class="label">Correlations</span>
+                </div>
+                <div class="summary-item">
+                    <span class="value">{{analysis_duration}}</span>
+                    <span class="label">Duration</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Information -->
+        <div class="grid grid-2">
+            <div class="card">
+                <h2>Analysis Information</h2>
+                <table class="info-table">
+                    <tr>
+                        <th>Analysis ID</th>
+                        <td>{{analysis_id}}</td>
+                    </tr>
+                    <tr>
+                        <th>Project</th>
+                        <td>{{project_id}}</td>
+                    </tr>
+                    <tr>
+                        <th>AI Provider</th>
+                        <td>{{provider}}</td>
+                    </tr>
+                    <tr>
+                        <th>Log Level Filter</th>
+                        <td><span class="badge badge-info">{{level_filter}}</span></td>
+                    </tr>
+                    <tr>
+                        <th>Status</th>
+                        <td>
+                            {% if status == "Completed" %}
+                                <span class="badge badge-success">{{status}}</span>
+                            {% elif status == "Failed" %}
+                                <span class="badge badge-error">{{status}}</span>
+                            {% else %}
+                                <span class="badge badge-warning">{{status}}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Started At</th>
+                        <td>{{started_at}}</td>
+                    </tr>
+                    <tr>
+                        <th>Completed At</th>
+                        <td>{{completed_at}}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Log File Information -->
+            <div class="card">
+                <h2>Log File Details</h2>
+                <table class="info-table">
+                    <tr>
+                        <th>File ID</th>
+                        <td>{{log_file_id}}</td>
+                    </tr>
+                    <tr>
+                        <th>Original Filename</th>
+                        <td>{{original_filename}}</td>
+                    </tr>
+                    <tr>
+                        <th>File Size</th>
+                        <td>{{file_size}}</td>
+                    </tr>
+                    <tr>
+                        <th>Upload Date</th>
+                        <td>{{upload_date}}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Performance Metrics -->
+        {% if performance_metrics %}
+        <div class="card">
+            <h2>Performance Metrics</h2>
+            <table class="metrics-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Value</th>
+                        <th>Unit</th>
+                        <th>Threshold</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for metric in performance_metrics %}
+                    <tr {% if metric.is_bottleneck %}class="bottleneck"{% endif %}>
+                        <td>{{metric.metric_name}}</td>
+                        <td class="metric-value">{{metric.metric_value}}</td>
+                        <td>{{metric.unit}}</td>
+                        <td>{{metric.threshold_value | default("N/A")}}</td>
+                        <td>
+                            {% if metric.is_bottleneck %}
+                                <span class="status-error">BOTTLENECK</span>
+                            {% else %}
+                                <span class="status-ok">OK</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Error Correlations -->
+        {% if correlations %}
+        <div class="card">
+            <h2>Error Correlations</h2>
+            {% for correlation in correlations %}
+            <div class="correlation-item">
+                <div class="correlation-strength">{{(correlation.correlation_strength * 100) | round}}%</div>
+                <h3>Correlated Error: {{correlation.correlated_error_id}}</h3>
+                <p><strong>Type:</strong> {{correlation.correlation_type}}</p>
+                <p><strong>Detected:</strong> {{correlation.created_at}}</p>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Analysis Results -->
+        {% if result %}
+        <div class="card">
+            <h2>Analysis Results</h2>
+            <div class="result-content">{{result}}</div>
+        </div>
+        {% endif %}
+
+        <!-- Error Information -->
+        {% if error_message %}
+        <div class="card">
+            <h2>Error Information</h2>
+            <div class="error-section">
+                <h3>Error Details</h3>
+                <div class="result-content">{{error_message}}</div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>This report was generated by Synapse - Advanced Log Analysis Platform</p>
+            <p>Report generated on {{generated_at}} | Analysis ID: {{analysis_id}}</p>
+        </div>
+    </div>
+
+    <script>
+        // Print functionality
+        if (window.location.search.includes('print=true')) {
+            window.onload = function() {
+                window.print();
+            };
+        }
+
+        // Copy functionality for analysis ID
+        function copyAnalysisId() {
+            navigator.clipboard.writeText('{{analysis_id}}');
+            alert('Analysis ID copied to clipboard');
+        }
+    </script>
+</body>
+</html>

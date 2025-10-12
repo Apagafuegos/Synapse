@@ -1,4 +1,4 @@
-# LogLens Development Guide
+# Synapse Development Guide
 
 ## Build Commands
 - `cargo build` - Build the project

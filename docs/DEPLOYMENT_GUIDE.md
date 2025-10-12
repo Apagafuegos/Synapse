@@ -1,4 +1,4 @@
-# LogLens Deployment Guide
+# Synapse Deployment Guide
 
 ## Quick Start Installation
 
@@ -6,22 +6,22 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-repo/LogLens.git
-cd LogLens
+git clone https://github.com/your-repo/Synapse.git
+cd Synapse
 
 # Run the installation script
 ./install.sh
 
 # Verify installation
-loglens --help
+synapse --help
 ```
 
 ### Method 2: Docker Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-repo/LogLens.git
-cd LogLens
+git clone https://github.com/your-repo/Synapse.git
+cd Synapse
 
 # Build and start all services
 docker-compose up -d
@@ -36,11 +36,11 @@ docker-compose up -d
 
 ```bash
 # Method 1: Using installed binary
-loglens --dashboard
-loglens --dashboard --port 8080
+synapse --dashboard
+synapse --dashboard --port 8080
 
 # Method 2: Using Docker
-docker run -p 8080:8080 -v ~/.loglens/data:/home/user/.loglens/data loglens --dashboard
+docker run -p 8080:8080 -v ~/.synapse/data:/home/user/.synapse/data synapse --dashboard
 
 ### Method 3: Using Docker Compose
 docker-compose up dashboard
@@ -50,11 +50,11 @@ docker-compose up dashboard
 
 ```bash
 # Method 1: Using installed binary
-loglens --mcp-server
-loglens --mcp-server --mcp-port 3001
+synapse --mcp-server
+synapse --mcp-server --mcp-port 3001
 
 # Method 2: Using Docker
-docker run -p 3001:3001 -v ~/.loglens/data:/home/user/.loglens/data loglens --mcp-server
+docker run -p 3001:3001 -v ~/.synapse/data:/home/user/.synapse/data synapse --mcp-server
 
 ### Method 3: Using Docker Compose
 docker-compose up mcp
@@ -65,27 +65,27 @@ docker-compose up mcp
 ```bash
 # Initialize a new project
 cd your-project
-loglens init
+synapse init
 
 # Link existing project to dashboard
-loglens link
+synapse link
 
 # List all projects
-loglens list-projects
+synapse list-projects
 
 # View projects in dashboard
-loglens --dashboard
+synapse --dashboard
 ```
 
 ## Architecture
 
 ### Unified Data Directory
 
-All LogLens data is stored in `~/.loglens/`:
+All Synapse data is stored in `~/.synapse/`:
 ```
-~/.loglens/
+~/.synapse/
 ├── data/
-│   └── loglens.db          # Unified SQLite database
+│   └── synapse.db          # Unified SQLite database
 ├── logs/                    # Application logs
 └── config/
     └── config.toml          # Global configuration
@@ -93,18 +93,18 @@ All LogLens data is stored in `~/.loglens/`:
 
 ### Services
 
-1. **CLI Tool** (`loglens`)
+1. **CLI Tool** (`synapse`)
    - Log analysis commands
    - Project management
    - Dashboard/MCP server launcher
 
-2. **Web Dashboard** (`loglens --dashboard`)
+2. **Web Dashboard** (`synapse --dashboard`)
    - Web interface at `http://localhost:8080`
    - Project visualization
    - Analysis results
    - Real-time monitoring
 
-3. **MCP Server** (`loglens --mcp-server`)
+3. **MCP Server** (`synapse --mcp-server`)
    - Model Context Protocol server
    - Available on port 3001
    - Tools: `analyze_logs`, `parse_logs`, `filter_logs`
@@ -127,7 +127,7 @@ docker-compose --profile cli up cli
 
 ```bash
 # Data directory override
-export LOGLENS_DATA_DIR="/custom/path"
+export SYNAPSE_DATA_DIR="/custom/path"
 
 # API Keys
 export OPENROUTER_API_KEY="your-key"
@@ -140,7 +140,7 @@ export PORT=8080              # Dashboard port
 export MCP_PORT=3001          # MCP server port
 
 # Database
-export DATABASE_URL="sqlite:/path/to/loglens.db"
+export DATABASE_URL="sqlite:/path/to/synapse.db"
 ```
 
 ## Project Integration
@@ -148,12 +148,12 @@ export DATABASE_URL="sqlite:/path/to/loglens.db"
 ### 1. Initialize Project
 ```bash
 cd your-project
-loglens init
+synapse init
 ```
 
 This creates:
 ```
-your-project/.loglens/
+your-project/.synapse/
 ├── config.toml       # Project configuration
 ├── metadata.json     # Project metadata
 ├── index.db          # Analysis database
@@ -163,12 +163,12 @@ your-project/.loglens/
 
 ### 2. Link to Dashboard
 ```bash
-loglens link
+synapse link
 ```
 
 ### 3. View in Dashboard
 ```bash
-loglens --dashboard
+synapse --dashboard
 # Navigate to Projects tab
 ```
 
@@ -179,8 +179,8 @@ loglens --dashboard
 ./uninstall.sh
 
 # Manual removal (if needed)
-rm -rf ~/.local/bin/loglens
-rm -rf ~/.loglens
+rm -rf ~/.local/bin/synapse
+rm -rf ~/.synapse
 rm -f ~/.config/systemd/user/mcp.service
 ```
 
@@ -201,32 +201,32 @@ rm -f ~/.config/systemd/user/mcp.service
 2. **Database errors**
    ```bash
    # Check data directory permissions
-   ls -la ~/.loglens/
+   ls -la ~/.synapse/
    
    # Reset data directory
-   rm -rf ~/.loglens/data
-   mkdir -p ~/.loglens/data
+   rm -rf ~/.synapse/data
+   mkdir -p ~/.synapse/data
    ```
 
 3. **Docker port conflicts**
    ```bash
    # Change ports in docker-compose.yml
    # Or use different ports with CLI flags
-   loglens --dashboard --port 8081
+   synapse --dashboard --port 8081
    ```
 
 ### Logs
 
 ```bash
 # Application logs
-tail -f ~/.loglens/logs/app.log
+tail -f ~/.synapse/logs/app.log
 
 # Docker logs
 docker-compose logs dashboard
 docker-compose logs mcp
 
 # Debug logging
-RUST_LOG=debug loglens --dashboard
+RUST_LOG=debug synapse --dashboard
 ```
 
 ## Development
@@ -238,12 +238,12 @@ RUST_LOG=debug loglens --dashboard
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # Clone and build
-git clone https://github.com/your-repo/LogLens.git
-cd LogLens
+git clone https://github.com/your-repo/Synapse.git
+cd Synapse
 cargo build --release
 
 # Install binary
-cp target/release/loglens ~/.local/bin/
+cp target/release/synapse ~/.local/bin/
 ```
 
 ### Running Tests
@@ -256,16 +256,16 @@ cargo test --package web
 
 ## Configuration Files
 
-### Global Config: `~/.loglens/config/config.toml`
+### Global Config: `~/.synapse/config/config.toml`
 ```toml
-data_dir = "~/.loglens/data"
+data_dir = "~/.synapse/data"
 log_level = "info"
 
 [ai]
 default_provider = "openrouter"
 
 [database]
-path = "~/.loglens/data/loglens.db"
+path = "~/.synapse/data/synapse.db"
 
 [dashboard]
 port = 8080
@@ -276,7 +276,7 @@ port = 3001
 host = "127.0.0.1"
 ```
 
-### Project Config: `.loglens.toml`
+### Project Config: `.synapse.toml`
 ```toml
 name = "my-project"
 description = "My awesome project"
@@ -292,11 +292,11 @@ slim_mode = "light"
 
 ## Migration from Previous Versions
 
-If you have an existing LogLens installation:
+If you have an existing Synapse installation:
 
 1. **Backup existing data**
    ```bash
-   cp -r ~/.loglens ~/.loglens.backup
+   cp -r ~/.synapse ~/.synapse.backup
    ```
 
 2. **Run new installer**

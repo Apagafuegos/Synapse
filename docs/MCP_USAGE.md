@@ -1,6 +1,6 @@
-# LogLens MCP Usage Guide
+# Synapse MCP Usage Guide
 
-**Complete guide to using LogLens Model Context Protocol integration for AI-powered log analysis**
+**Complete guide to using Synapse Model Context Protocol integration for AI-powered log analysis**
 
 ## Table of Contents
 - [Quick Start](#quick-start)
@@ -18,12 +18,12 @@
 ### 5-Minute Setup
 
 ```bash
-# 1. Initialize LogLens in your project
+# 1. Initialize Synapse in your project
 cd /path/to/your/project
-loglens init
+synapse init
 
 # 2. Start MCP server
-loglens --mcp-server
+synapse --mcp-server
 
 # 3. Connect your MCP client (Claude Desktop, etc.)
 # See MCP_CLIENT_INTEGRATION.md for client setup
@@ -51,14 +51,14 @@ loglens --mcp-server
 
 - **Rust**: 1.70 or later
 - **Operating System**: Linux, macOS, or Windows
-- **Disk Space**: 50MB for LogLens + variable for analysis storage
+- **Disk Space**: 50MB for Synapse + variable for analysis storage
 
 ### Build from Source
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/loglens.git
-cd loglens
+git clone https://github.com/yourusername/synapse.git
+cd synapse
 
 # Build with MCP features
 cargo build --release --features "project-management,mcp-server"
@@ -70,8 +70,8 @@ cargo install --path . --features "project-management,mcp-server"
 ### Verify Installation
 
 ```bash
-loglens --version
-loglens --help
+synapse --version
+synapse --help
 ```
 
 ---
@@ -80,23 +80,23 @@ loglens --help
 
 ### Step 1: Project Initialization
 
-Initialize LogLens in your software project:
+Initialize Synapse in your software project:
 
 ```bash
 cd /path/to/your/project
-loglens init
+synapse init
 ```
 
 **What happens:**
-- Creates `.loglens/` directory with configuration
+- Creates `.synapse/` directory with configuration
 - Generates unique project ID
 - Initializes SQLite database for analysis tracking
-- Registers project in global registry (`~/.config/loglens/projects.json`)
+- Registers project in global registry (`~/.config/synapse/projects.json`)
 
 **Output:**
 ```
 ✓ Detected Rust project (Cargo.toml found)
-✓ Created .loglens/ directory
+✓ Created .synapse/ directory
 ✓ Generated configuration files
 ✓ Initialized database
 ✓ Registered project in global registry
@@ -108,25 +108,25 @@ Project ID: 550e8400-e29b-41d4-a716-446655440000
 
 ```bash
 # List all linked projects
-loglens list-projects
+synapse list-projects
 
 # Validate project configuration
-loglens validate-links
+synapse validate-links
 ```
 
 ### Step 3: Start MCP Server
 
 ```bash
 # Start server (listens on stdio)
-loglens --mcp-server
+synapse --mcp-server
 
 # Or with logging enabled
-RUST_LOG=info loglens --mcp-server
+RUST_LOG=info synapse --mcp-server
 ```
 
 **Expected output:**
 ```
-LogLens MCP Server started
+Synapse MCP Server started
 Protocol Version: 2024-11-05
 Listening on stdio for JSON-RPC requests
 Tools available: 6 (analyze_logs, parse_logs, filter_logs, add_log_file, get_analysis, query_analyses)
@@ -146,7 +146,7 @@ Once connected, use MCP tools through your client to analyze logs.
 
 ## MCP Tools Reference
 
-LogLens provides **6 MCP tools** for log analysis and management:
+Synapse provides **6 MCP tools** for log analysis and management:
 
 ### 1. analyze_logs
 
@@ -236,7 +236,7 @@ LogLens provides **6 MCP tools** for log analysis and management:
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| project_path | string | Yes | - | Path to project root (must contain .loglens/) |
+| project_path | string | Yes | - | Path to project root (must contain .synapse/) |
 | log_file_path | string | Yes | - | Path to log file (absolute or relative to project) |
 | level | string | No | ERROR | Minimum log level to analyze |
 | provider | string | No | openrouter | AI provider for analysis |
@@ -255,7 +255,7 @@ LogLens provides **6 MCP tools** for log analysis and management:
 ```
 
 **Workflow:**
-1. Validates project has `.loglens/` directory
+1. Validates project has `.synapse/` directory
 2. Resolves log file path (absolute or relative)
 3. Creates analysis record in database
 4. Spawns async analysis task (if auto_analyze=true)
@@ -456,19 +456,19 @@ const recent = await mcp.callTool("query_analyses", {
 
 ### Multiple Projects
 
-LogLens supports managing multiple projects simultaneously:
+Synapse supports managing multiple projects simultaneously:
 
 ```bash
 # Initialize multiple projects
-cd /path/to/project1 && loglens init
-cd /path/to/project2 && loglens init
-cd /path/to/project3 && loglens init
+cd /path/to/project1 && synapse init
+cd /path/to/project2 && synapse init
+cd /path/to/project3 && synapse init
 
 # List all projects
-loglens list-projects
+synapse list-projects
 
 # Output:
-# Linked LogLens Projects:
+# Linked Synapse Projects:
 # ┌────────────────┬─────────────────────────┬──────────────┐
 # │ Name           │ Path                    │ Last Access  │
 # ├────────────────┼─────────────────────────┼──────────────┤
@@ -501,7 +501,7 @@ for (const project of projects) {
 
 ### Concurrent Analysis
 
-LogLens handles concurrent analyses efficiently:
+Synapse handles concurrent analyses efficiently:
 
 ```javascript
 // Launch multiple analyses in parallel
@@ -661,13 +661,13 @@ await getAnalysisHistory("/path/to/project", 7);
 
 **Error:**
 ```
-Error: Project path /path/to/project does not contain .loglens/ directory
+Error: Project path /path/to/project does not contain .synapse/ directory
 ```
 
 **Solution:**
 ```bash
 cd /path/to/project
-loglens init
+synapse init
 ```
 
 #### 2. "Analysis stuck in pending"
@@ -685,7 +685,7 @@ loglens init
 echo $OPENROUTER_API_KEY
 
 # Enable debug logging
-RUST_LOG=debug loglens --mcp-server
+RUST_LOG=debug synapse --mcp-server
 
 # Query analysis status
 # Use get_analysis tool to check for error details
@@ -701,9 +701,9 @@ Error: database is locked
 **Cause:** Multiple processes accessing SQLite database simultaneously
 
 **Solution:**
-- LogLens uses WAL mode to minimize locking
+- Synapse uses WAL mode to minimize locking
 - Wait a moment and retry
-- Check no other LogLens instances are running
+- Check no other Synapse instances are running
 
 #### 4. "Invalid analysis_id format"
 
@@ -735,26 +735,26 @@ Enable comprehensive logging:
 
 ```bash
 # All modules
-RUST_LOG=debug loglens --mcp-server
+RUST_LOG=debug synapse --mcp-server
 
 # Specific modules
-RUST_LOG=loglens_core::mcp_server=debug loglens --mcp-server
+RUST_LOG=synapse_core::mcp_server=debug synapse --mcp-server
 
 # Multiple modules
-RUST_LOG=loglens_core=debug,sqlx=info loglens --mcp-server
+RUST_LOG=synapse_core=debug,sqlx=info synapse --mcp-server
 ```
 
 ### Validation Commands
 
 ```bash
 # Validate all project links
-loglens validate-links
+synapse validate-links
 
 # Check database integrity
-sqlite3 /path/to/project/.loglens/index.db "PRAGMA integrity_check;"
+sqlite3 /path/to/project/.synapse/index.db "PRAGMA integrity_check;"
 
 # List all analyses for a project
-sqlite3 /path/to/project/.loglens/index.db "SELECT id, status, created_at FROM analyses;"
+sqlite3 /path/to/project/.synapse/index.db "SELECT id, status, created_at FROM analyses;"
 ```
 
 ---
@@ -770,7 +770,7 @@ sqlite3 /path/to/project/.loglens/index.db "SELECT id, status, created_at FROM a
 **Periodic Vacuum:**
 ```bash
 # Clean up deleted records and reclaim space
-sqlite3 /path/to/project/.loglens/index.db "VACUUM;"
+sqlite3 /path/to/project/.synapse/index.db "VACUUM;"
 ```
 
 ### 2. Log File Size
@@ -803,7 +803,7 @@ done
 
 ### 4. Analysis Caching
 
-LogLens stores all analysis results permanently:
+Synapse stores all analysis results permanently:
 - Retrieve completed analyses instantly
 - No re-analysis for same log file
 
@@ -838,7 +838,7 @@ LogLens stores all analysis results permanently:
 
 ```
 your-project/
-├── .loglens/           # LogLens directory
+├── .synapse/           # Synapse directory
 │   ├── config.toml
 │   ├── metadata.json
 │   ├── index.db
@@ -870,11 +870,11 @@ Clean up old analyses periodically:
 
 ```sql
 -- Delete analyses older than 30 days
-sqlite3 /path/to/project/.loglens/index.db \
+sqlite3 /path/to/project/.synapse/index.db \
   "DELETE FROM analyses WHERE created_at < datetime('now', '-30 days');"
 
 -- Vacuum to reclaim space
-sqlite3 /path/to/project/.loglens/index.db "VACUUM;"
+sqlite3 /path/to/project/.synapse/index.db "VACUUM;"
 ```
 
 ### 4. Error Handling
@@ -928,6 +928,6 @@ try {
 
 ## Support
 
-**Issues:** https://github.com/yourusername/loglens/issues
-**Documentation:** https://github.com/yourusername/loglens/docs
-**Examples:** https://github.com/yourusername/loglens/examples
+**Issues:** https://github.com/yourusername/synapse/issues
+**Documentation:** https://github.com/yourusername/synapse/docs
+**Examples:** https://github.com/yourusername/synapse/examples

@@ -1,10 +1,10 @@
 **LLM Prompt:**
 
-You are an expert Rust developer and testing specialist. Your task is to create a comprehensive unit and integration testing strategy and implementation for the `LogLens` monorepo project.
+You are an expert Rust developer and testing specialist. Your task is to create a comprehensive unit and integration testing strategy and implementation for the `Synapse` monorepo project.
 
 **Project Context:**
 
-`LogLens` is a Rust-based application for log analysis. The project is structured as a monorepo with several crates, including `core` (the main logic), `cli`, `web`, and `mcp`. The core functionality, which must be the primary focus of testing, resides in `core/src/`.
+`Synapse` is a Rust-based application for log analysis. The project is structured as a monorepo with several crates, including `core` (the main logic), `cli`, `web`, and `mcp`. The core functionality, which must be the primary focus of testing, resides in `core/src/`.
 
 **Core Requirements:**
 

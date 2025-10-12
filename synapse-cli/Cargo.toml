@@ -1,0 +1,21 @@
+[package]
+name = "synapse-cli"
+version = "0.1.0"
+edition = "2021"
+description = "Command-line interface for Synapse log analysis"
+
+[[bin]]
+name = "synapse"
+path = "src/main.rs"
+
+[dependencies]
+synapse-core = { path = "../synapse-core", features = ["mcp-server", "full"] }
+synapse-web = { path = "../synapse-web" }
+synapse-mcp = { path = "../synapse-mcp" }
+clap.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true
+dirs.workspace = true

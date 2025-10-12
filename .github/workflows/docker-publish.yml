@@ -13,7 +13,7 @@ permissions:
   
 env:
   REGISTRY: ghcr.io
-  # This should resolve to your user/org and repo name (e.g., Apagofuegos/LogLens)
+  # This should resolve to your user/org and repo name (e.g., Apagofuegos/Synapse)
   IMAGE_NAME: ${{ github.repository }} 
 
 jobs:

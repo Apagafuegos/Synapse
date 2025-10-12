@@ -1,12 +1,12 @@
-# LogLens MCP Server - Quick Start
+# Synapse MCP Server - Quick Start
 
-Get LogLens working with Claude Desktop in 5 minutes.
+Get Synapse working with Claude Desktop in 5 minutes.
 
 ## 1. Build the MCP Server
 
 ```bash
-cd /path/to/loglens
-cargo build --release -p loglens-core --features mcp-server,project-management --bin mcp_server
+cd /path/to/synapse
+cargo build --release -p synapse-core --features mcp-server,project-management --bin mcp_server
 ```
 
 Binary location: `./target/release/mcp_server`
@@ -19,13 +19,13 @@ Edit your Claude Desktop config:
 **Linux**: `~/.config/claude-desktop/config.json`
 **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
-Add this (replace `/path/to/loglens` with your actual path):
+Add this (replace `/path/to/synapse` with your actual path):
 
 ```json
 {
   "mcpServers": {
-    "loglens": {
-      "command": "/path/to/loglens/target/release/mcp_server",
+    "synapse": {
+      "command": "/path/to/synapse/target/release/mcp_server",
       "env": {
         "OPENROUTER_API_KEY": "your-api-key-here"
       }
@@ -61,7 +61,7 @@ For persistent analysis tracking:
 ```bash
 # Initialize a project
 cd /your/project
-loglens init
+synapse init
 
 # In Claude Desktop:
 "Add the log file at logs/app.log to my project at /your/project"
@@ -80,8 +80,8 @@ loglens init
 
 **"Server not found"**
 - Check the `command` path is absolute and correct
-- Verify the binary exists: `ls -la /path/to/loglens/target/release/mcp_server`
-- Make it executable: `chmod +x /path/to/loglens/target/release/mcp_server`
+- Verify the binary exists: `ls -la /path/to/synapse/target/release/mcp_server`
+- Make it executable: `chmod +x /path/to/synapse/target/release/mcp_server`
 
 **"API key invalid"**
 - Set your API key in the config under `env`
@@ -102,7 +102,7 @@ loglens init
 
 **Quick Reference**
 
-Build: `cargo build --release -p loglens-core --features mcp-server,project-management --bin mcp_server`
+Build: `cargo build --release -p synapse-core --features mcp-server,project-management --bin mcp_server`
 Binary: `./target/release/mcp_server`
 Config: `~/.config/claude-desktop/config.json` (Linux)
-Init Project: `loglens init`
+Init Project: `synapse init`

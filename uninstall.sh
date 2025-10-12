@@ -1,56 +1,56 @@
 #!/bin/bash
 
-# LogLens Uninstallation Script
-# Removes all LogLens components and data
+# Synapse Uninstallation Script
+# Removes all Synapse components and data
 
 set -e  # Exit on any error
 
-echo "🗑️  LogLens Uninstallation Script"
+echo "🗑️  Synapse Uninstallation Script"
 echo "================================"
 
-# Check if LogLens is installed
-if ! command -v loglens &> /dev/null; then
-    echo "⚠️  LogLens not found in PATH"
+# Check if Synapse is installed
+if ! command -v synapse &> /dev/null; then
+    echo "⚠️  Synapse not found in PATH"
 else
-    echo "📍 Found LogLens at: $(which loglens)"
+    echo "📍 Found Synapse at: $(which synapse)"
 fi
 
 # Stop running processes
-echo "🔄 Stopping any running LogLens processes..."
-pkill -f loglens || true
+echo "🔄 Stopping any running Synapse processes..."
+pkill -f synapse || true
 sleep 1
 
 # Stop systemd service if enabled
-if systemctl --user is-active --quiet loglens-mcp 2>/dev/null; then
+if systemctl --user is-active --quiet synapse-mcp 2>/dev/null; then
     echo "🔄 Stopping systemd service..."
-    systemctl --user stop loglens-mcp || true
+    systemctl --user stop synapse-mcp || true
 fi
 
-if systemctl --user is-enabled --quiet loglens-mcp 2>/dev/null; then
+if systemctl --user is-enabled --quiet synapse-mcp 2>/dev/null; then
     echo "🔄 Disabling systemd service..."
-    systemctl --user disable loglens-mcp || true
+    systemctl --user disable synapse-mcp || true
 fi
 
 # Remove binary
-if [[ -f "$HOME/.local/bin/loglens" ]]; then
+if [[ -f "$HOME/.local/bin/synapse" ]]; then
     echo "🗑️  Removing binary from ~/.local/bin..."
-    rm -f "$HOME/.local/bin/loglens"
+    rm -f "$HOME/.local/bin/synapse"
 fi
 
 # Remove data directory
-read -p "Remove data directory ~/.loglens? This will delete all databases and projects. (y/N): " -n 1 -r
+read -p "Remove data directory ~/.synapse? This will delete all databases and projects. (y/N): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "🗑️  Removing data directory..."
-    rm -rf ~/.loglens
+    rm -rf ~/.synapse
 else
-    echo "📁 Keeping data directory ~/.loglens"
+    echo "📁 Keeping data directory ~/.synapse"
 fi
 
 # Remove systemd service file
-if [[ -f "$HOME/.config/systemd/user/loglens-mcp.service" ]]; then
+if [[ -f "$HOME/.config/systemd/user/synapse-mcp.service" ]]; then
     echo "🗑️  Removing systemd service file..."
-    rm -f "$HOME/.config/systemd/user/loglens-mcp.service"
+    rm -f "$HOME/.config/systemd/user/synapse-mcp.service"
     systemctl --user daemon-reload || true
 fi
 
@@ -63,4 +63,4 @@ fi
 
 echo ""
 echo "✅ Uninstallation complete!"
-echo "   LogLens has been removed from your system"
+echo "   Synapse has been removed from your system"

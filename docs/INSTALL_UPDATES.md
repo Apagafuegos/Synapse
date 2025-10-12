@@ -11,27 +11,27 @@ The install scripts (`install.sh` and `install.bat`) have been updated to reflec
 **install.sh:**
 ```bash
 # OLD
-echo "  loglens --mcp-server              # Start MCP server"
-echo "  loglens init                      # Initialize project"
+echo "  synapse --mcp-server              # Start MCP server"
+echo "  synapse init                      # Initialize project"
 
 # NEW  
-echo "  loglens --mcp-server              # Start MCP server (stdio mode)"
-echo "  loglens --mcp-server --mcp-transport http  # Start MCP server (HTTP mode)"
-echo "  loglens --mcp-server --mcp-port 8080       # Start MCP server on custom port"
-echo "  loglens init                      # Initialize project"
+echo "  synapse --mcp-server              # Start MCP server (stdio mode)"
+echo "  synapse --mcp-server --mcp-transport http  # Start MCP server (HTTP mode)"
+echo "  synapse --mcp-server --mcp-port 8080       # Start MCP server on custom port"
+echo "  synapse init                      # Initialize project"
 ```
 
 **install.bat:**
 ```batch
 # OLD
-echo   loglens --mcp-server              # Start MCP server
-echo   loglens init                      # Initialize project
+echo   synapse --mcp-server              # Start MCP server
+echo   synapse init                      # Initialize project
 
 # NEW
-echo   loglens --mcp-server              # Start MCP server (stdio mode)
-echo   loglens --mcp-server --mcp-transport http  # Start MCP server (HTTP mode)
-echo   loglens --mcp-server --mcp-port 8080       # Start MCP server on custom port
-echo   loglens init                      # Initialize project
+echo   synapse --mcp-server              # Start MCP server (stdio mode)
+echo   synapse --mcp-server --mcp-transport http  # Start MCP server (HTTP mode)
+echo   synapse --mcp-server --mcp-port 8080       # Start MCP server on custom port
+echo   synapse init                      # Initialize project
 ```
 
 ### 2. Updated MCP Tool Descriptions
@@ -44,7 +44,7 @@ echo "  - parse_logs: Parse raw logs into structured format"
 echo "  - filter_logs: Filter logs by level and patterns"
 
 # NEW
-echo "  - list_projects: List available LogLens projects"
+echo "  - list_projects: List available Synapse projects"
 echo "  - get_project: Get detailed project information"
 echo "  - list_analyses: List analyses for a project"
 echo "  - get_analysis: Get complete analysis results"
@@ -60,7 +60,7 @@ echo   - parse_logs: Parse raw logs into structured format
 echo   - filter_logs: Filter logs by level and patterns
 
 # NEW
-echo   - list_projects: List available LogLens projects
+echo   - list_projects: List available Synapse projects
 echo   - get_project: Get detailed project information
 echo   - list_analyses: List analyses for a project
 echo   - get_analysis: Get complete analysis results
@@ -125,7 +125,7 @@ The updated tool list reflects the actual implementation:
 install.bat
 
 # Verify new MCP functionality
-loglens --mcp-server --mcp-transport http --mcp-port 8080
+synapse --mcp-server --mcp-transport http --mcp-port 8080
 ```
 
 ## Migration Notes

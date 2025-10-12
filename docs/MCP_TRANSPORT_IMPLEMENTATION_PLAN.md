@@ -10,14 +10,14 @@
 
 ### STDIO Transport Status: ⚠️ BROKEN
 - **Error**: "connection closed: initialized request"
-- **Root Cause**: `Arc::try_unwrap()` in `loglens-mcp/src/transport/stdio.rs:12` fails when Arc has multiple references
+- **Root Cause**: `Arc::try_unwrap()` in `synapse-mcp/src/transport/stdio.rs:12` fails when Arc has multiple references
 - **Issue**: Server doesn't properly maintain connection lifecycle
-- **Location**: `loglens-mcp/src/transport/stdio.rs`
+- **Location**: `synapse-mcp/src/transport/stdio.rs`
 
 ### HTTP Transport Status: ❌ PLACEHOLDER ONLY
 - **Current**: Dummy SSE handler that sends "MCP server ready" message
 - **Missing**: Complete SSE server implementation using rmcp's SSE transport
-- **Location**: `loglens-mcp/src/transport/http.rs`
+- **Location**: `synapse-mcp/src/transport/http.rs`
 
 ### RMCP Version
 - Currently using: `rmcp = "0.2.1"` with features `["server", "transport-io"]`
@@ -29,7 +29,7 @@
 
 ### PHASE 1: Update Dependencies ⚙️
 
-**File**: `loglens-mcp/Cargo.toml`
+**File**: `synapse-mcp/Cargo.toml`
 
 **Changes Required**:
 
@@ -51,7 +51,7 @@ tokio-util = "0.7"
 
 ### PHASE 2: Completely Rewrite HTTP Transport 🔨
 
-**File**: `loglens-mcp/src/transport/http.rs`
+**File**: `synapse-mcp/src/transport/http.rs`
 
 **ACTION**: **REPLACE ENTIRE FILE** with production implementation
 
@@ -61,7 +61,7 @@ use rmcp::transport::sse_server::{SseServer, SseServerConfig};
 use tokio_util::sync::CancellationToken;
 use std::sync::Arc;
 use std::time::Duration;
-use crate::server::LogLensMcpHandler;
+use crate::server::SynapseMcpHandler;
 ```
 
 #### Implementation Structure
@@ -75,7 +75,7 @@ use crate::server::LogLensMcpHandler;
 
 2. **Server Creation**:
 ```rust
-pub async fn run_http_server(handler: Arc<LogLensMcpHandler>, port: u16) -> anyhow::Result<()> {
+pub async fn run_http_server(handler: Arc<SynapseMcpHandler>, port: u16) -> anyhow::Result<()> {
     // Create cancellation token
     let ct = CancellationToken::new();
 
@@ -135,11 +135,11 @@ pub async fn run_http_server(handler: Arc<LogLensMcpHandler>, port: u16) -> anyh
 
 ### PHASE 3: Fix STDIO Transport 🔧
 
-**File**: `loglens-mcp/src/transport/stdio.rs`
+**File**: `synapse-mcp/src/transport/stdio.rs`
 
 **Current Code (BROKEN)**:
 ```rust
-pub async fn run_stdio_server(handler: Arc<LogLensMcpHandler>) -> anyhow::Result<()> {
+pub async fn run_stdio_server(handler: Arc<SynapseMcpHandler>) -> anyhow::Result<()> {
     let (stdin, stdout) = stdio();
 
     // THIS FAILS - Arc has multiple references
@@ -158,9 +158,9 @@ pub async fn run_stdio_server(handler: Arc<LogLensMcpHandler>) -> anyhow::Result
 ```rust
 use rmcp::{transport::io::stdio, service::serve_server};
 use std::sync::Arc;
-use crate::server::LogLensMcpHandler;
+use crate::server::SynapseMcpHandler;
 
-pub async fn run_stdio_server(handler: Arc<LogLensMcpHandler>) -> anyhow::Result<()> {
+pub async fn run_stdio_server(handler: Arc<SynapseMcpHandler>) -> anyhow::Result<()> {
     // NO LOGGING - stdio transport requires pure JSON-RPC on stdout
 
     // Get stdio transport
@@ -192,14 +192,14 @@ pub async fn run_stdio_server(handler: Arc<LogLensMcpHandler>) -> anyhow::Result
 
 ### PHASE 4: Update Server Structure 🏗️
 
-**File**: `loglens-mcp/src/server.rs`
+**File**: `synapse-mcp/src/server.rs`
 
 **Verify Handler Trait Implementations**:
 
-1. Ensure `LogLensMcpHandler` implements `Clone`:
+1. Ensure `SynapseMcpHandler` implements `Clone`:
 ```rust
 #[derive(Clone)]
-pub struct LogLensMcpHandler {
+pub struct SynapseMcpHandler {
     server: Arc<McpServer>,
 }
 ```
@@ -208,14 +208,14 @@ pub struct LogLensMcpHandler {
 ```rust
 impl McpServer {
     pub async fn start_stdio(&self) -> anyhow::Result<()> {
-        let handler = Arc::new(LogLensMcpHandler::new(Arc::new(self.clone())));
+        let handler = Arc::new(SynapseMcpHandler::new(Arc::new(self.clone())));
         create_and_run_transport(TransportType::Stdio, handler).await
     }
 
     pub async fn start_http(&self, port: u16) -> anyhow::Result<()> {
-        let handler = Arc::new(LogLensMcpHandler::new(Arc::new(self.clone())));
+        let handler = Arc::new(SynapseMcpHandler::new(Arc::new(self.clone())));
 
-        tracing::info!("Starting LogLens MCP server with HTTP transport on port {}", port);
+        tracing::info!("Starting Synapse MCP server with HTTP transport on port {}", port);
         tracing::info!("Server name: {}", self.config.server_name);
         tracing::info!("Server version: {}", self.config.server_version);
 
@@ -235,12 +235,12 @@ impl McpServer {
 
 ### PHASE 5: Add Comprehensive Tests 🧪
 
-**File**: `loglens-mcp/tests/transport_tests.rs` (NEW FILE)
+**File**: `synapse-mcp/tests/transport_tests.rs` (NEW FILE)
 
 **Test Structure**:
 
 ```rust
-use loglens_mcp::{create_server, Config, Database};
+use synapse_mcp::{create_server, Config, Database};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use serde_json::json;
 
@@ -320,20 +320,20 @@ async fn test_graceful_shutdown() {
 
 ```bash
 # Test 1: Start STDIO server
-loglens --mcp-server --mcp-transport stdio
+synapse --mcp-server --mcp-transport stdio
 
 # Test 2: Send initialize request (in separate terminal)
-echo '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"0.1.0","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | loglens --mcp-server --mcp-transport stdio
+echo '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"0.1.0","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | synapse --mcp-server --mcp-transport stdio
 
 # Test 3: Send tools/list request
-echo '{"jsonrpc":"2.0","method":"tools/list","id":2}' | loglens --mcp-server --mcp-transport stdio
+echo '{"jsonrpc":"2.0","method":"tools/list","id":2}' | synapse --mcp-server --mcp-transport stdio
 ```
 
 **HTTP Transport Testing**:
 
 ```bash
 # Test 1: Start HTTP server
-loglens --mcp-server --mcp-transport http --mcp-port 3001
+synapse --mcp-server --mcp-transport http --mcp-port 3001
 
 # Test 2: Connect SSE client (separate terminal)
 curl -N http://localhost:3001/mcp/sse

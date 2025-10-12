@@ -1,8 +1,8 @@
-# LogLens
+# Synapse
 
 **AI-Powered Log Analysis Platform**
 
-LogLens is an intelligent log analysis platform that leverages multiple AI providers to deliver automated insights, pattern detection, anomaly identification, and actionable recommendations from your log files. With a modern web interface and powerful CLI, LogLens transforms complex log data into understandable analysis.
+Synapse is an intelligent log analysis platform that leverages multiple AI providers to deliver automated insights, pattern detection, anomaly identification, and actionable recommendations from your log files. With a modern web interface and powerful CLI, Synapse transforms complex log data into understandable analysis.
 
 ---
 
@@ -48,15 +48,15 @@ Full Model Context Protocol support for AI assistant integration with tools like
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/loglens.git
-cd loglens
+git clone https://github.com/yourusername/synapse.git
+cd synapse
 
 # Run the installation script
 chmod +x install.sh
 ./install.sh
 ```
 
-This builds the release binary, builds the frontend, and installs to `~/.local/bin/loglens`.
+This builds the release binary, builds the frontend, and installs to `~/.local/bin/synapse`.
 
 **Add to PATH** (if needed):
 ```bash
@@ -71,12 +71,12 @@ export PATH="$HOME/.local/bin:$PATH"
 docker-compose up -d
 
 # Or build and run manually
-docker build -t loglens .
+docker build -t synapse .
 docker run -d -p 3000:3000 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/uploads:/app/uploads \
   -e OPENROUTER_API_KEY=your_key_here \
-  loglens --dashboard
+  synapse --dashboard
 ```
 
 ---
@@ -87,10 +87,10 @@ docker run -d -p 3000:3000 \
 
 ```bash
 # Start the web dashboard
-loglens --dashboard
+synapse --dashboard
 
 # On a custom port
-loglens --dashboard --port 8080
+synapse --dashboard --port 8080
 ```
 
 Navigate to `http://localhost:3000` in your browser.
@@ -107,35 +107,35 @@ Navigate to `http://localhost:3000` in your browser.
 
 ```bash
 # Start MCP server (stdio mode - for AI assistants)
-loglens --mcp-server
+synapse --mcp-server
 
 # Start MCP server (HTTP mode - for web clients)
-loglens --mcp-server --mcp-transport http --mcp-port 3001
+synapse --mcp-server --mcp-transport http --mcp-port 3001
 ```
 
 ### Project Management
 
 ```bash
-# Initialize LogLens in current directory
-loglens init
+# Initialize Synapse in current directory
+synapse init
 
 # Initialize in specific directory
-loglens init --path /path/to/project
+synapse init --path /path/to/project
 
 # Link project to global registry
-loglens link
+synapse link
 
 # List all linked projects
-loglens list-projects
+synapse list-projects
 
 # Validate project links
-loglens validate-links
+synapse validate-links
 
 # Validate and auto-repair issues
-loglens validate-links --repair
+synapse validate-links --repair
 
 # Unlink a project
-loglens unlink
+synapse unlink
 ```
 
 ---
@@ -166,7 +166,7 @@ PORT=3000                    # Web server port
 RUST_LOG=info               # Log level
 
 # Database (auto-configured, override if needed)
-LOGLENS_DATABASE_PATH=/custom/path/loglens.db
+SYNAPSE_DATABASE_PATH=/custom/path/synapse.db
 
 # AI Provider API Keys (if not using web interface)
 OPENROUTER_API_KEY=sk-or-...
@@ -266,7 +266,7 @@ Real-time log streaming from multiple sources:
 
 ### Common Issues
 
-**"loglens command not found"**:
+**"synapse command not found"**:
 ```bash
 # Add to PATH
 export PATH="$HOME/.local/bin:$PATH"
@@ -281,7 +281,7 @@ export PATH="$HOME/.local/bin:$PATH"
 ls ~/.local/bin/frontend/index.html
 
 # Rebuild if needed
-cd loglens-web/frontend-react
+cd synapse-web/frontend-react
 npm install && npm run build
 ```
 
@@ -292,23 +292,23 @@ npm install && npm run build
 
 **Database issues**:
 ```bash
-# Database is auto-created in ~/.loglens/data/
+# Database is auto-created in ~/.synapse/data/
 # Check permissions
-ls -la ~/.loglens/data/loglens.db
+ls -la ~/.synapse/data/synapse.db
 
 # Reset if needed (note: loses all data)
-rm ~/.loglens/data/loglens.db
-loglens --dashboard  # Will recreate automatically
+rm ~/.synapse/data/synapse.db
+synapse --dashboard  # Will recreate automatically
 ```
 
 ### Debug Mode
 
 ```bash
 # Enable verbose logging
-RUST_LOG=debug loglens --dashboard
+RUST_LOG=debug synapse --dashboard
 
 # For MCP server (stdio mode - use only for debugging)
-RUST_LOG=debug loglens --mcp-server --mcp-transport http
+RUST_LOG=debug synapse --mcp-server --mcp-transport http
 ```
 
 ---
@@ -330,4 +330,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 **Happy log analyzing! 🔍**
 
-Transform your logs from noise into actionable insights with LogLens.
+Transform your logs from noise into actionable insights with Synapse.
