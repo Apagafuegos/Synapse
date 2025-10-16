@@ -149,7 +149,11 @@ impl AIProvider for ClaudeProvider {
                 description: Some("Most intelligent model".to_string()),
                 context_length: Some(200000),
                 pricing_tier: Some("high".to_string()),
-                capabilities: vec!["chat".to_string(), "analysis".to_string(), "vision".to_string()],
+                capabilities: vec![
+                    "chat".to_string(),
+                    "analysis".to_string(),
+                    "vision".to_string(),
+                ],
                 supports_streaming: true,
                 provider: "claude".to_string(),
             },
@@ -181,7 +185,7 @@ mod tests {
     fn test_claude_provider_creation() {
         let provider = ClaudeProvider::new("test_key".to_string());
         assert_eq!(provider.api_key, "test_key");
-        assert_eq!(provider.model, "claude-4-haiku");
+        assert_eq!(provider.model, "claude-haiku-3");
     }
 
     #[test]

@@ -49,3 +49,9 @@ console_error_panic_hook = "0.1"
 # Logging dependencies
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
