@@ -21,6 +21,8 @@ jobs:
             archive_name: synapse-windows-x86_64.zip
     
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     
     steps:
     - uses: actions/checkout@v4
@@ -60,5 +62,6 @@ jobs:
       with:
         files: |
           ${{ matrix.archive_name }}
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
