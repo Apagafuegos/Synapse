@@ -71,13 +71,19 @@ pub async fn link_project(project_path: Option<&Path>) -> Result<LinkResult> {
         );
     }
 
-    // Register in global registry
+    // Register in global registry (JSON file for CLI)
     registry.register_project(
         metadata.project_id.clone(),
         metadata.project_name.clone(),
         project_path.clone(),
-        synapse_dir,
+        synapse_dir.clone(),
     )?;
+
+    // ALSO register in SQLite database for web dashboard visibility
+    if let Err(e) = register_in_database(&metadata, &project_path, &synapse_dir).await {
+        // Log warning but don't fail - CLI users may not have web database yet
+        debug!("Failed to register project in web database: {}", e);
+    }
 
     info!(
         "Successfully linked project {} ({})",
@@ -90,6 +96,98 @@ pub async fn link_project(project_path: Option<&Path>) -> Result<LinkResult> {
         root_path: project_path,
         already_linked: false,
     })
+}
+
+/// Register project in SQLite database for web dashboard
+async fn register_in_database(
+    metadata: &ProjectMetadata,
+    root_path: &Path,
+    synapse_dir: &Path,
+) -> Result<()> {
+    use sqlx::sqlite::SqliteConnectOptions;
+    use sqlx::ConnectOptions;
+    use std::str::FromStr;
+
+    // Get the unified database path
+    let db_path = crate::db_path::get_database_path();
+
+    // Ensure database directory exists
+    if let Some(parent) = db_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    // Connect to database
+    let db_url = format!("sqlite://{}", db_path.to_string_lossy());
+    let mut conn = SqliteConnectOptions::from_str(&db_url)?
+        .create_if_missing(true)
+        .connect()
+        .await?;
+
+    // Ensure projects table exists with CLI integration columns
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            root_path TEXT,
+            synapse_config TEXT,
+            project_type TEXT DEFAULT 'cli',
+            last_accessed DATETIME,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )"
+    )
+    .execute(&mut conn)
+    .await?;
+
+    // Check if project already exists
+    let exists: bool = sqlx::query_scalar(
+        "SELECT COUNT(*) > 0 FROM projects WHERE id = ? OR root_path = ?"
+    )
+    .bind(&metadata.project_id)
+    .bind(root_path.to_string_lossy().as_ref())
+    .fetch_one(&mut conn)
+    .await?;
+
+    if exists {
+        // Update existing project
+        sqlx::query(
+            "UPDATE projects SET
+                name = ?,
+                description = NULL,
+                root_path = ?,
+                synapse_config = ?,
+                project_type = ?,
+                last_accessed = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? OR root_path = ?"
+        )
+        .bind(&metadata.project_name)
+        .bind(root_path.to_string_lossy().as_ref())
+        .bind(synapse_dir.to_string_lossy().as_ref())
+        .bind(&metadata.project_type)
+        .bind(&metadata.project_id)
+        .bind(root_path.to_string_lossy().as_ref())
+        .execute(&mut conn)
+        .await?;
+    } else {
+        // Insert new project
+        sqlx::query(
+            "INSERT INTO projects (
+                id, name, description, root_path, synapse_config,
+                project_type, last_accessed, created_at, updated_at
+            ) VALUES (?, ?, NULL, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+        )
+        .bind(&metadata.project_id)
+        .bind(&metadata.project_name)
+        .bind(root_path.to_string_lossy().as_ref())
+        .bind(synapse_dir.to_string_lossy().as_ref())
+        .bind(&metadata.project_type)
+        .execute(&mut conn)
+        .await?;
+    }
+
+    Ok(())
 }
 
 /// Unlink a project from the global registry
@@ -125,11 +223,16 @@ pub async fn unlink_project(project_path: Option<&Path>) -> Result<UnlinkResult>
     let mut registry = ProjectRegistry::load()
         .context("Failed to load global registry")?;
 
-    // Unregister from global registry
+    // Unregister from global registry (JSON file)
     let was_linked = registry.unregister_project(&metadata.project_id)?;
 
     if !was_linked {
         debug!("Project was not linked in registry");
+    }
+
+    // ALSO remove from SQLite database
+    if let Err(e) = unregister_from_database(&metadata.project_id).await {
+        debug!("Failed to unregister project from web database: {}", e);
     }
 
     info!(
@@ -143,6 +246,32 @@ pub async fn unlink_project(project_path: Option<&Path>) -> Result<UnlinkResult>
         root_path: project_path,
         was_linked,
     })
+}
+
+/// Remove project from SQLite database
+async fn unregister_from_database(project_id: &str) -> Result<()> {
+    use sqlx::sqlite::SqliteConnectOptions;
+    use sqlx::ConnectOptions;
+    use std::str::FromStr;
+
+    let db_path = crate::db_path::get_database_path();
+
+    // Skip if database doesn't exist
+    if !db_path.exists() {
+        return Ok(());
+    }
+
+    let db_url = format!("sqlite://{}", db_path.to_string_lossy());
+    let mut conn = SqliteConnectOptions::from_str(&db_url)?
+        .connect()
+        .await?;
+
+    sqlx::query("DELETE FROM projects WHERE id = ?")
+        .bind(project_id)
+        .execute(&mut conn)
+        .await?;
+
+    Ok(())
 }
 
 /// Result of link operation

@@ -35,7 +35,18 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y mingw-w64
-    
+
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Build frontend
+      run: |
+        cd synapse-web/frontend-react
+        npm install
+        npm run build
+
     - name: Build binary
       run: cargo build --release --target ${{ matrix.target }} --bin synapse
     
@@ -48,13 +59,16 @@ jobs:
       run: |
         staging="synapse-${{ matrix.target }}"
         mkdir -p "$staging"
-        
+
+        # Copy frontend files
+        cp -r synapse-web/frontend-react/dist "$staging/frontend"
+
         if [[ "${{ matrix.target }}" == "x86_64-unknown-linux-gnu" ]]; then
           cp "target/${{ matrix.target }}/release/synapse" "$staging/"
-          tar czf "${{ matrix.archive_name }}" -C "$staging" synapse
+          tar czf "${{ matrix.archive_name }}" -C "$staging" .
         else
           cp "target/${{ matrix.target }}/release/synapse.exe" "$staging/"
-          7z a "${{ matrix.archive_name }}" "$staging/*"
+          cd "$staging" && 7z a "../${{ matrix.archive_name }}" * && cd ..
         fi
     
     - name: Create GitHub Release

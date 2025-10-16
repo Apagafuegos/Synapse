@@ -8,4 +8,5 @@ loglens-web/frontend-react/dist/
 *.db-wal
 .loglens
 .crush
+.synapse
 data
