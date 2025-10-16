@@ -21,6 +21,9 @@ once_cell = "1.18"
 [features]
 default = ["wee_alloc"]
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
 [dependencies.web-sys]
 workspace = true
 features = [
