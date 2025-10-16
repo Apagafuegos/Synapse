@@ -47,7 +47,7 @@ jobs:
     - name: Build frontend
       run: |
         cd synapse-web/frontend-react
-        npm install
+        npm ci
         npm run build
 
     - name: Build binary
