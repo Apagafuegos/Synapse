@@ -123,6 +123,126 @@ pub async fn initialize_database<P: AsRef<Path>>(database_path: P) -> Result<Sql
     Ok(pool)
 }
 
+/// Register project in SQLite database for web dashboard visibility
+///
+/// This function registers a project in the central SQLite database that the web
+/// dashboard queries. It should be called after project initialization or linking
+/// to ensure the project appears in the web interface.
+#[cfg(feature = "project-management")]
+pub async fn register_in_database(
+    metadata: &crate::project::ProjectMetadata,
+    root_path: &Path,
+    synapse_dir: &Path,
+) -> Result<()> {
+    use sqlx::sqlite::SqliteConnectOptions;
+    use sqlx::ConnectOptions;
+    use std::str::FromStr;
+
+    // Get the unified database path
+    let db_path = crate::db_path::get_database_path();
+
+    // Ensure database directory exists
+    if let Some(parent) = db_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    // Connect to database
+    // Note: We don't create_if_missing because the database should be initialized
+    // by the web server's migration system. If it doesn't exist, that's an error.
+    let db_url = format!("sqlite://{}", db_path.to_string_lossy());
+    let mut conn = SqliteConnectOptions::from_str(&db_url)?
+        .create_if_missing(false)
+        .connect()
+        .await
+        .context("Failed to connect to database. Please start the web server at least once to initialize the database.")?;
+
+    // Check if project already exists
+    // Note: The projects table should exist from migrations. If it doesn't, this will fail.
+    let exists: bool = sqlx::query_scalar(
+        "SELECT COUNT(*) > 0 FROM projects WHERE id = ? OR root_path = ?"
+    )
+    .bind(&metadata.project_id)
+    .bind(root_path.to_string_lossy().as_ref())
+    .fetch_one(&mut conn)
+    .await?;
+
+    if exists {
+        // Update existing project
+        sqlx::query(
+            "UPDATE projects SET
+                name = ?,
+                description = NULL,
+                root_path = ?,
+                synapse_config = ?,
+                project_type = ?,
+                last_accessed = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? OR root_path = ?"
+        )
+        .bind(&metadata.project_name)
+        .bind(root_path.to_string_lossy().as_ref())
+        .bind(synapse_dir.to_string_lossy().as_ref())
+        .bind(&metadata.project_type)
+        .bind(&metadata.project_id)
+        .bind(root_path.to_string_lossy().as_ref())
+        .execute(&mut conn)
+        .await?;
+
+        debug!("Updated project {} in database", metadata.project_id);
+    } else {
+        // Insert new project
+        sqlx::query(
+            "INSERT INTO projects (
+                id, name, description, root_path, synapse_config,
+                project_type, last_accessed, created_at, updated_at
+            ) VALUES (?, ?, NULL, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+        )
+        .bind(&metadata.project_id)
+        .bind(&metadata.project_name)
+        .bind(root_path.to_string_lossy().as_ref())
+        .bind(synapse_dir.to_string_lossy().as_ref())
+        .bind(&metadata.project_type)
+        .execute(&mut conn)
+        .await?;
+
+        info!("Registered project {} in database", metadata.project_id);
+    }
+
+    Ok(())
+}
+
+/// Remove project from SQLite database
+///
+/// This function removes a project from the central SQLite database. It should be
+/// called when unlinking a project to ensure it no longer appears in the web dashboard.
+#[cfg(feature = "project-management")]
+pub async fn unregister_from_database(project_id: &str) -> Result<()> {
+    use sqlx::sqlite::SqliteConnectOptions;
+    use sqlx::ConnectOptions;
+    use std::str::FromStr;
+
+    let db_path = crate::db_path::get_database_path();
+
+    // Skip if database doesn't exist
+    if !db_path.exists() {
+        debug!("Database does not exist, skipping unregister");
+        return Ok(());
+    }
+
+    let db_url = format!("sqlite://{}", db_path.to_string_lossy());
+    let mut conn = SqliteConnectOptions::from_str(&db_url)?
+        .connect()
+        .await?;
+
+    sqlx::query("DELETE FROM projects WHERE id = ?")
+        .bind(project_id)
+        .execute(&mut conn)
+        .await?;
+
+    info!("Unregistered project {} from database", project_id);
+    Ok(())
+}
+
 #[cfg(all(test, feature = "project-management"))]
 mod tests {
     use super::*;

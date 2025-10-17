@@ -144,6 +144,15 @@ pub async fn initialize_project<P: AsRef<Path>>(project_path: Option<P>) -> Resu
     .context("Failed to register project in global registry")?;
     info!("Registered project in global registry");
 
+    // ALSO register in SQLite database for web dashboard visibility
+    #[cfg(feature = "project-management")]
+    if let Err(e) = super::database::register_in_database(&metadata, &project_path, &synapse_dir).await {
+        // Log warning but don't fail - CLI should work without web dashboard
+        warn!("Failed to register project in web database: {}. The CLI will work normally, but this project may not appear in the web dashboard.", e);
+    } else {
+        info!("Registered project in web database");
+    }
+
     info!("Synapse initialization complete!");
     info!("Project ID: {}", project_id);
 
